@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}Submit Complaint - Complaint Management System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-10 col-xl-8">
+        <div class="card hover-lift slide-up">
+            <div class="card-header text-center">
+                <h4 class="mb-0 gradient-text h5 h4-md">
+                    <i class="fas fa-plus-circle me-2"></i>Submit New Complaint
+                </h4>
+                <p class="mb-0 mt-2 opacity-75 small">Help us understand and resolve your issue</p>
+            </div>
+            <div class="card-body">
+                <form method="POST" class="needs-validation" novalidate>
+                    <div class="row">
+                        <div class="col-12 mb-3 mb-md-4">
+                            <label for="title" class="form-label">
+                                <i class="fas fa-heading me-2"></i>Complaint Title
+                            </label>
+                            <input type="text" class="form-control form-control-lg" id="title" name="title" required 
+                                   placeholder="Brief, descriptive title for your complaint">
+                            <div class="invalid-feedback">
+                                Please provide a title for your complaint.
+                            </div>
+                            <div class="form-text">
+                                <small class="text-muted">
+                                    <i class="fas fa-lightbulb me-1"></i>
+                                    Keep it concise but descriptive
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12 col-md-6 mb-3 mb-md-4">
+                            <label for="category" class="form-label">
+                                <i class="fas fa-tags me-2"></i>Category
+                            </label>
+                            <select class="form-control form-control-lg" id="category" name="category" required>
+                                <option value="General">General</option>
+                                <option value="Technical">Technical</option>
+                                <option value="Billing">Billing</option>
+                                <option value="Service">Service</option>
+                                <option value="Product">Product</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            <div class="invalid-feedback">
+                                Please select a category for your complaint.
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 mb-3 mb-md-4">
+                            <label for="priority" class="form-label">
+                                <i class="fas fa-exclamation-circle me-2"></i>Priority
+                            </label>
+                            <select class="form-control form-control-lg" id="priority" name="priority" required>
+                                <option value="Low">Low</option>
+                                <option value="Medium" selected>Medium</option>
+                                <option value="High">High</option>
+                                <option value="Urgent">Urgent</option>
+                            </select>
+                            <div class="invalid-feedback">
+                                Please select a priority level.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12 mb-3 mb-md-4">
+                            <label for="description" class="form-label">
+                                <i class="fas fa-align-left me-2"></i>Detailed Description
+                            </label>
+                            <textarea class="form-control" id="description" name="description" rows="6" required
+                                      placeholder="Please provide detailed information about your complaint. Include:
+• What happened?
+• When did it occur?
+• How has it affected you?
+• What would you like us to do about it?"></textarea>
+                            <div class="invalid-feedback">
+                                Please provide a detailed description of your complaint.
+                            </div>
+                            <div class="form-text">
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    The more details you provide, the better we can help resolve your issue
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Guidelines Section -->
+                    <div class="row mb-3 mb-md-4">
+                        <div class="col-12">
+                            <div class="card" style="background: rgba(102, 126, 234, 0.05); border: 1px solid rgba(102, 126, 234, 0.1);">
+                                <div class="card-body p-3">
+                                    <h6 class="text-primary mb-3 small">
+                                        <i class="fas fa-lightbulb me-2"></i>Submission Guidelines
+                                    </h6>
+                                    <ul class="list-unstyled mb-0 small text-muted">
+                                        <li class="mb-2">
+                                            <i class="fas fa-check-circle text-success me-2"></i>
+                                            Be specific about dates, times, and locations
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-check-circle text-success me-2"></i>
+                                            Include any relevant reference numbers or emails
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-check-circle text-success me-2"></i>
+                                            Describe the impact on your experience
+                                        </li>
+                                        <li>
+                                            <i class="fas fa-check-circle text-success me-2"></i>
+                                            Suggest what resolution you're hoping for
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('user_dashboard') }}" class="btn btn-outline-secondary order-2 order-md-1">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                        </a>
+                        <button type="submit" class="btn btn-primary btn-lg order-1 order-md-2">
+                            <i class="fas fa-paper-plane me-2"></i>Submit Complaint
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Form validation and character counter
+(function() {
+    'use strict';
+    window.addEventListener('load', function() {
+        var forms = document.getElementsByClassName('needs-validation');
+        var validation = Array.prototype.filter.call(forms, function(form) {
+            form.addEventListener('submit', function(event) {
+                if (form.checkValidity() === false) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    }, false);
+    
+    // Character counter for description
+    const description = document.getElementById('description');
+    const maxLength = 1000;
+    
+    function updateCounter() {
+        const remaining = maxLength - description.value.length;
+        const counter = document.getElementById('char-counter') || createCounter();
+        counter.textContent = `${remaining} characters remaining`;
+        
+        if (remaining < 50) {
+            counter.classList.add('text-warning');
+        } else {
+            counter.classList.remove('text-warning');
+        }
+    }
+    
+    function createCounter() {
+        const counter = document.createElement('small');
+        counter.id = 'char-counter';
+        counter.className = 'form-text text-muted';
+        counter.style.position = 'absolute';
+        counter.style.bottom = '5px';
+        counter.style.right = '10px';
+        description.parentNode.style.position = 'relative';
+        description.parentNode.appendChild(counter);
+        return counter;
+    }
+    
+    if (description) {
+        description.addEventListener('input', updateCounter);
+        updateCounter();
+    }
+})();
+</script>
+{% endblock %}

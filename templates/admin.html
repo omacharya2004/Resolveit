@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - Complaint Management System{% endblock %}
+
+{% block content %}
+<!-- Header Section -->
+<div class="row mb-3 mb-md-5">
+    <div class="col-12">
+        <div class="card glass slide-up">
+            <div class="card-body text-center py-3 py-md-4">
+                <h1 class="gradient-text mb-2 mb-md-3 h3 h1-md">
+                    <i class="fas fa-tachometer-alt me-2 me-md-3"></i>Admin Dashboard
+                </h1>
+                <p class="text-muted mb-3 mb-md-4 small">Manage and track all complaints in the system</p>
+                <div class="d-grid d-md-flex justify-content-center gap-2 gap-md-3 flex-wrap">
+                    <button class="btn btn-outline-primary" onclick="window.location.reload()">
+                        <i class="fas fa-sync-alt me-2"></i>Refresh Data
+                    </button>
+                    <a href="{{ url_for('download_csv') }}" class="btn btn-outline-success">
+                        <i class="fas fa-file-csv me-2"></i>Download CSV
+                    </a>
+                    <a href="{{ url_for('download_pdf') }}" class="btn btn-outline-danger">
+                        <i class="fas fa-file-pdf me-2"></i>Download PDF
+                    </a>
+                    <button class="btn btn-outline-info" onclick="window.print()">
+                        <i class="fas fa-print me-2"></i>Print Report
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-3 mb-md-5">
+    <div class="col-12 col-sm-6 col-lg-4 mb-3">
+        <div class="stat-card hover-lift">
+            <div class="text-warning text-center">
+                <i class="fas fa-clock fa-2x fa-md-3x mb-2 mb-md-3"></i>
+                <h2 class="mb-2 h3 h2-md">{{ complaints|selectattr('status', 'equalto', 'Pending')|list|length }}</h2>
+                <h5 class="mb-0 h6 h5-md">Pending</h5>
+                <small class="text-muted">Awaiting review</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-4 mb-3">
+        <div class="stat-card hover-lift">
+            <div class="text-info text-center">
+                <i class="fas fa-cog fa-2x fa-md-3x mb-2 mb-md-3"></i>
+                <h2 class="mb-2 h3 h2-md">{{ complaints|selectattr('status', 'equalto', 'In Progress')|list|length }}</h2>
+                <h5 class="mb-0 h6 h5-md">In Progress</h5>
+                <small class="text-muted">Being addressed</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-4 mb-3">
+        <div class="stat-card hover-lift">
+            <div class="text-success text-center">
+                <i class="fas fa-check-circle fa-2x fa-md-3x mb-2 mb-md-3"></i>
+                <h2 class="mb-2 h3 h2-md">{{ complaints|selectattr('status', 'equalto', 'Resolved')|list|length }}</h2>
+                <h5 class="mb-0 h6 h5-md">Resolved</h5>
+                <small class="text-muted">Successfully closed</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Stats Row -->
+{% if complaints %}
+<div class="row mb-3 mb-md-5">
+    <div class="col-12 col-sm-6 mb-3">
+        <div class="card glass">
+            <div class="card-body text-center">
+                <h6 class="text-primary mb-2 mb-md-3 h6">
+                    <i class="fas fa-chart-line me-2"></i>Total Complaints
+                </h6>
+                <h2 class="gradient-text h3 h2-md">{{ complaints|length }}</h2>
+                <small class="text-muted">All time complaints</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 mb-3">
+        <div class="card glass">
+            <div class="card-body text-center">
+                <h6 class="text-primary mb-2 mb-md-3 h6">
+                    <i class="fas fa-users me-2"></i>Unique Users
+                </h6>
+                <h2 class="gradient-text h3 h2-md">{{ complaints|map(attribute='user_email')|unique|list|length }}</h2>
+                <small class="text-muted">Users with complaints</small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Complaints Section -->
+{% if complaints %}
+    <div class="row">
+        <div class="col-12 mb-3 mb-md-4">
+            <h3 class="gradient-text h4 h3-md">
+                <i class="fas fa-clipboard-list me-2"></i>All Complaints
+            </h3>
+            <p class="text-muted small">Click on any complaint to view details and update status</p>
+        </div>
+        {% for complaint in complaints %}
+            <div class="col-12 col-md-6 col-lg-4 mb-3 mb-md-4">
+                <div class="card h-100 hover-lift slide-up">
+                    <div class="card-header d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+                        <h6 class="mb-0 fw-bold small">{{ complaint.title }}</h6>
+                        <span class="badge 
+                            {% if complaint.status == 'Pending' %}bg-warning
+                            {% elif complaint.status == 'In Progress' %}bg-info
+                            {% elif complaint.status == 'Resolved' %}bg-success
+                            {% endif %} small">
+                            <i class="fas fa-{{ 'clock' if complaint.status == 'Pending' else 'cog' if complaint.status == 'In Progress' else 'check' }} me-1"></i>
+                            {{ complaint.status }}
+                        </span>
+                    </div>
+                    <div class="card-body d-flex flex-column">
+                        <p class="card-text flex-grow-1 small">
+                            {{ complaint.description[:100] }}{% if complaint.description|length > 100 %}...{% endif %}
+                        </p>
+                        
+                        <div class="mt-3 p-2 p-md-3 rounded" style="background: rgba(102, 126, 234, 0.05);">
+                            <div class="row">
+                                <div class="col-12 col-sm-6 mb-2">
+                                    <small class="text-muted d-block">
+                                        <i class="fas fa-user me-2"></i><strong>User:</strong> {{ complaint.user_name }}
+                                    </small>
+                                </div>
+                                <div class="col-12 col-sm-6 mb-2">
+                                    <small class="text-muted d-block">
+                                        <i class="fas fa-tags me-2"></i><strong>Category:</strong> 
+                                        <span class="badge bg-secondary small">{{ complaint.category }}</span>
+                                    </small>
+                                </div>
+                                <div class="col-12 col-sm-6 mb-2">
+                                    <small class="text-muted d-block">
+                                        <i class="fas fa-envelope me-2"></i><strong>Email:</strong> {{ complaint.user_email }}
+                                    </small>
+                                </div>
+                                <div class="col-12 col-sm-6 mb-2">
+                                    <small class="text-muted d-block">
+                                        <i class="fas fa-exclamation-circle me-2"></i><strong>Priority:</strong> 
+                                        <span class="badge 
+                                            {% if complaint.priority == 'Low' %}bg-success
+                                            {% elif complaint.priority == 'Medium' %}bg-warning
+                                            {% elif complaint.priority == 'High' %}bg-danger
+                                            {% elif complaint.priority == 'Urgent' %}bg-dark
+                                            {% endif %} small">
+                                            {{ complaint.priority }}
+                                        </span>
+                                    </small>
+                                </div>
+                                <div class="col-12">
+                                    <small class="text-muted d-block">
+                                        <i class="fas fa-calendar-alt me-2"></i><strong>Submitted:</strong> {{ complaint.created_at }}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <form method="POST" action="{{ url_for('update_status', complaint_id=complaint.id) }}" class="needs-validation" novalidate>
+                            <div class="d-flex flex-column flex-sm-row gap-2">
+                                <select name="status" class="form-select form-select-sm flex-grow-1" required>
+                                    <option value="Pending" {% if complaint.status == 'Pending' %}selected{% endif %}>
+                                        <i class="fas fa-clock"></i> Pending
+                                    </option>
+                                    <option value="In Progress" {% if complaint.status == 'In Progress' %}selected{% endif %}>
+                                        <i class="fas fa-cog"></i> In Progress
+                                    </option>
+                                    <option value="Resolved" {% if complaint.status == 'Resolved' %}selected{% endif %}>
+                                        <i class="fas fa-check"></i> Resolved
+                                    </option>
+                                </select>
+                                <button type="submit" class="btn btn-primary btn-sm" title="Update Status">
+                                    <i class="fas fa-save"></i>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card text-center hover-lift slide-up">
+                <div class="card-body py-5">
+                    <div class="mb-4">
+                        <i class="fas fa-clipboard-list fa-4x text-muted"></i>
+                    </div>
+                    <h3 class="gradient-text mb-3">No Complaints Found</h3>
+                    <p class="text-muted mb-4 lead">
+                        There are currently no complaints in the system. Check back later or encourage users to submit their feedback.
+                    </p>
+                    <button class="btn btn-outline-primary" onclick="window.location.reload()">
+                        <i class="fas fa-sync-alt me-2"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+<!-- Admin Actions -->
+{% if complaints %}
+<div class="row mt-5">
+    <div class="col-12">
+        <div class="card glass">
+            <div class="card-body text-center">
+                <h5 class="gradient-text mb-3">
+                    <i class="fas fa-tools me-2"></i>Admin Actions
+                </h5>
+                <div class="d-flex justify-content-center gap-3 flex-wrap">
+                    <button class="btn btn-outline-primary" onclick="filterComplaints('Pending')">
+                        <i class="fas fa-filter me-2"></i>Show Pending
+                    </button>
+                    <button class="btn btn-outline-info" onclick="filterComplaints('In Progress')">
+                        <i class="fas fa-filter me-2"></i>Show In Progress
+                    </button>
+                    <button class="btn btn-outline-success" onclick="filterComplaints('Resolved')">
+                        <i class="fas fa-filter me-2"></i>Show Resolved
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="filterComplaints('all')">
+                        <i class="fas fa-list me-2"></i>Show All
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+// Admin dashboard functionality
+function filterComplaints(status) {
+    const cards = document.querySelectorAll('.card.hover-lift.slide-up');
+    
+    cards.forEach(card => {
+        const badge = card.querySelector('.badge');
+        if (badge) {
+            const cardStatus = badge.textContent.trim();
+            if (status === 'all' || cardStatus.includes(status)) {
+                card.style.display = 'block';
+                card.style.animation = 'fadeIn 0.5s ease-in-out';
+            } else {
+                card.style.display = 'none';
+            }
+        }
+    });
+}
+
+// Auto-refresh every 30 seconds
+setInterval(function() {
+    // Only refresh if user is not actively interacting
+    if (document.visibilityState === 'visible') {
+        window.location.reload();
+    }
+}, 30000);
+
+// Form validation
+(function() {
+    'use strict';
+    window.addEventListener('load', function() {
+        var forms = document.getElementsByClassName('needs-validation');
+        var validation = Array.prototype.filter.call(forms, function(form) {
+            form.addEventListener('submit', function(event) {
+                if (form.checkValidity() === false) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    }, false);
+})();
+</script>
+{% endblock %}

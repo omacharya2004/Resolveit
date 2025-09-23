@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}User Dashboard - Complaint Management System{% endblock %}
+
+{% block content %}
+<!-- Welcome Section -->
+<div class="row mb-3 mb-md-5">
+    <div class="col-12">
+        <div class="card glass slide-up">
+            <div class="card-body text-center py-3 py-md-5">
+                <h1 class="gradient-text mb-2 mb-md-3 h3 h1-md">
+                    <i class="fas fa-tachometer-alt me-2 me-md-3"></i>Welcome to Your Dashboard
+                </h1>
+                <p class="text-muted mb-3 mb-md-4 small">Manage and track your complaints efficiently</p>
+                <a href="{{ url_for('submit_complaint') }}" class="btn btn-primary btn-lg w-100 w-md-auto">
+                    <i class="fas fa-plus me-2"></i>Submit New Complaint
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+{% if complaints %}
+<div class="row mb-3 mb-md-5">
+    <div class="col-12 col-sm-6 col-lg-4 mb-3">
+        <div class="stat-card card-hover-effect animate-slide-left">
+            <div class="text-warning">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <i class="fas fa-clock fa-2x fa-md-3x"></i>
+                    <div class="progress-circle" data-percentage="{{ (complaints|selectattr('status', 'equalto', 'Pending')|list|length / complaints|length * 100)|round }}">
+                        <svg class="progress-ring" width="50" height="50" class="d-md-none">
+                            <circle class="progress-ring-circle" stroke="#ffc107" stroke-width="3" fill="transparent" r="22" cx="25" cy="25"/>
+                        </svg>
+                        <svg class="progress-ring" width="60" height="60" class="d-none d-md-block">
+                            <circle class="progress-ring-circle" stroke="#ffc107" stroke-width="4" fill="transparent" r="26" cx="30" cy="30"/>
+                        </svg>
+                    </div>
+                </div>
+                <h2 class="mb-1 h3 h2-md">{{ complaints|selectattr('status', 'equalto', 'Pending')|list|length }}</h2>
+                <h6 class="mb-0 h6 h6-md">Pending</h6>
+                <small class="text-muted">Awaiting review</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-4 mb-3">
+        <div class="stat-card card-hover-effect animate-slide-top">
+            <div class="text-info">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <i class="fas fa-cog fa-2x fa-md-3x"></i>
+                    <div class="progress-circle" data-percentage="{{ (complaints|selectattr('status', 'equalto', 'In Progress')|list|length / complaints|length * 100)|round }}">
+                        <svg class="progress-ring" width="50" height="50" class="d-md-none">
+                            <circle class="progress-ring-circle" stroke="#0dcaf0" stroke-width="3" fill="transparent" r="22" cx="25" cy="25"/>
+                        </svg>
+                        <svg class="progress-ring" width="60" height="60" class="d-none d-md-block">
+                            <circle class="progress-ring-circle" stroke="#0dcaf0" stroke-width="4" fill="transparent" r="26" cx="30" cy="30"/>
+                        </svg>
+                    </div>
+                </div>
+                <h2 class="mb-1 h3 h2-md">{{ complaints|selectattr('status', 'equalto', 'In Progress')|list|length }}</h2>
+                <h6 class="mb-0 h6 h6-md">In Progress</h6>
+                <small class="text-muted">Being addressed</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-4 mb-3">
+        <div class="stat-card card-hover-effect animate-slide-right">
+            <div class="text-success">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <i class="fas fa-check-circle fa-2x fa-md-3x"></i>
+                    <div class="progress-circle" data-percentage="{{ (complaints|selectattr('status', 'equalto', 'Resolved')|list|length / complaints|length * 100)|round }}">
+                        <svg class="progress-ring" width="50" height="50" class="d-md-none">
+                            <circle class="progress-ring-circle" stroke="#198754" stroke-width="3" fill="transparent" r="22" cx="25" cy="25"/>
+                        </svg>
+                        <svg class="progress-ring" width="60" height="60" class="d-none d-md-block">
+                            <circle class="progress-ring-circle" stroke="#198754" stroke-width="4" fill="transparent" r="26" cx="30" cy="30"/>
+                        </svg>
+                    </div>
+                </div>
+                <h2 class="mb-1 h3 h2-md">{{ complaints|selectattr('status', 'equalto', 'Resolved')|list|length }}</h2>
+                <h6 class="mb-0 h6 h6-md">Resolved</h6>
+                <small class="text-muted">Successfully closed</small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Complaints Section -->
+{% if complaints %}
+    <div class="row">
+        <div class="col-12 mb-3 mb-md-4">
+            <h3 class="gradient-text h4 h3-md">
+                <i class="fas fa-clipboard-list me-2"></i>Your Complaints
+            </h3>
+        </div>
+        {% for complaint in complaints %}
+            <div class="col-12 col-md-6 col-lg-4 mb-3 mb-md-4">
+                <div class="card h-100 hover-lift slide-up">
+                    <div class="card-header d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+                        <h6 class="mb-0 fw-bold small">{{ complaint.title }}</h6>
+                        <div class="d-flex flex-wrap gap-1">
+                            <span class="badge bg-secondary small">{{ complaint.category }}</span>
+                            <span class="badge 
+                                {% if complaint.priority == 'Low' %}bg-success
+                                {% elif complaint.priority == 'Medium' %}bg-warning
+                                {% elif complaint.priority == 'High' %}bg-danger
+                                {% elif complaint.priority == 'Urgent' %}bg-dark
+                                {% endif %} small">
+                                {{ complaint.priority }}
+                            </span>
+                            <span class="badge 
+                                {% if complaint.status == 'Pending' %}bg-warning
+                                {% elif complaint.status == 'In Progress' %}bg-info
+                                {% elif complaint.status == 'Resolved' %}bg-success
+                                {% endif %} small">
+                                <i class="fas fa-{{ 'clock' if complaint.status == 'Pending' else 'cog' if complaint.status == 'In Progress' else 'check' }} me-1"></i>
+                                {{ complaint.status }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="card-body d-flex flex-column">
+                        <p class="card-text flex-grow-1 small">
+                            {{ complaint.description[:100] }}{% if complaint.description|length > 100 %}...{% endif %}
+                        </p>
+                        <div class="mt-auto">
+                            <hr class="my-3">
+                            <small class="text-muted d-flex align-items-center">
+                                <i class="fas fa-calendar-alt me-2"></i>
+                                <span>Submitted: {{ complaint.created_at }}</span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-8">
+            <div class="card text-center hover-lift slide-up">
+                <div class="card-body py-4 py-md-5">
+                    <div class="mb-3 mb-md-4">
+                        <i class="fas fa-clipboard-list fa-3x fa-md-4x text-muted"></i>
+                    </div>
+                    <h3 class="gradient-text mb-2 mb-md-3 h4 h3-md">No Complaints Yet</h3>
+                    <p class="text-muted mb-3 mb-md-4 small">
+                        You haven't submitted any complaints yet. Start by submitting your first complaint to get help with any issues you're experiencing.
+                    </p>
+                    <a href="{{ url_for('submit_complaint') }}" class="btn btn-primary btn-lg w-100 w-md-auto">
+                        <i class="fas fa-plus me-2"></i>Submit Your First Complaint
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+<!-- Quick Actions -->
+{% if complaints %}
+<div class="row mt-5">
+    <div class="col-12">
+        <div class="card glass">
+            <div class="card-body text-center">
+                <h5 class="gradient-text mb-3">
+                    <i class="fas fa-bolt me-2"></i>Quick Actions
+                </h5>
+                <div class="d-flex justify-content-center gap-3 flex-wrap">
+                    <a href="{{ url_for('submit_complaint') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-plus me-2"></i>New Complaint
+                    </a>
+                    <button class="btn btn-outline-info" onclick="window.location.reload()">
+                        <i class="fas fa-sync-alt me-2"></i>Refresh
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="window.print()">
+                        <i class="fas fa-print me-2"></i>Print Dashboard
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
