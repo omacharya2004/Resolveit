@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: pingme-chat
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SOCKETIO_ASYNC
+        value: eventlet
+      - key: CHAT_USE_SQLITE
+        value: "1"
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 10000
