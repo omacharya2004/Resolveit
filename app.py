@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime, timedelta
 import sqlite3
 import os
 import csv
@@ -76,6 +76,8 @@ def init_db():
             priority TEXT DEFAULT 'Medium',
             status TEXT DEFAULT 'Pending',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            admin_reply TEXT,
+            replied_at TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (id)
         )
     ''')
@@ -90,6 +92,16 @@ def init_db():
         cursor.execute('ALTER TABLE complaints ADD COLUMN priority TEXT DEFAULT "Medium"')
     except sqlite3.OperationalError:
         pass  # Column already exists
+    
+    # Add admin_reply and replied_at if they don't exist (for reply feature)
+    try:
+        cursor.execute('ALTER TABLE complaints ADD COLUMN admin_reply TEXT')
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute('ALTER TABLE complaints ADD COLUMN replied_at TIMESTAMP')
+    except sqlite3.OperationalError:
+        pass
     
     # Create default admin user if not exists
     cursor.execute('SELECT COUNT(*) FROM users WHERE role = "admin"')
@@ -285,11 +297,23 @@ def update_status(complaint_id):
     conn = get_db_connection()
     # Fetch complaint details and user email for notification
     comp = conn.execute('''
-        SELECT c.title, u.email AS user_email, u.name AS user_name
+        SELECT c.title, c.created_at, u.email AS user_email, u.name AS user_name
         FROM complaints c
         JOIN users u ON c.user_id = u.id
         WHERE c.id = ?
     ''', (complaint_id,)).fetchone()
+    
+    # Enforce 7-day minimum before allowing Resolved
+    if new_status == 'Resolved' and comp and comp['created_at']:
+        try:
+            created_dt = datetime.fromisoformat(str(comp['created_at']))
+        except Exception:
+            # Fallback parse for sqlite timestamp "YYYY-MM-DD HH:MM:SS"
+            created_dt = datetime.strptime(str(comp['created_at'])[:19], '%Y-%m-%d %H:%M:%S')
+        if datetime.now() < created_dt + timedelta(days=7):
+            conn.close()
+            flash('Complaints can only be marked Resolved after 7 days from submission.', 'error')
+            return redirect(url_for('admin_dashboard'))
 
     conn.execute('''
         UPDATE complaints 
@@ -316,6 +340,59 @@ def update_status(complaint_id):
             send_email_safely(subject, [comp['user_email']], body)
     except Exception as e:
         print(f"[mail] update_status notification error: {e}")
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/reply/<int:complaint_id>', methods=['POST'])
+@login_required
+def reply_to_complaint(complaint_id):
+    if current_user.role != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('user_dashboard'))
+    reply_text = request.form.get('reply', '').strip()
+    if not reply_text:
+        flash('Reply cannot be empty.', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+    conn = get_db_connection()
+    # Fetch for notification and to validate complaint exists
+    comp = conn.execute('''
+        SELECT c.id, c.status, c.title, u.email AS user_email, u.name AS user_name
+        FROM complaints c
+        JOIN users u ON c.user_id = u.id
+        WHERE c.id = ?
+    ''', (complaint_id,)).fetchone()
+    if not comp:
+        conn.close()
+        flash('Complaint not found.', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+    # Save reply and timestamp; optionally move to In Progress if still Pending
+    new_status = comp['status'] if comp['status'] != 'Pending' else 'In Progress'
+    conn.execute('''
+        UPDATE complaints
+        SET admin_reply = ?, replied_at = CURRENT_TIMESTAMP, status = ?
+        WHERE id = ?
+    ''', (reply_text, new_status, complaint_id))
+    conn.commit()
+    conn.close()
+
+    flash('Reply sent to user successfully!', 'success')
+
+    # Send reply email to the user (non-blocking)
+    try:
+        if comp and comp['user_email']:
+            subject = 'ResolveIt: Update on your complaint'
+            body = (
+                f"Hello {comp['user_name']},\n\n"
+                f"An administrator has replied to your complaint.\n"
+                f"Title: '{comp['title']}'\n\n"
+                f"Reply:\n{reply_text}\n\n"
+                f"You can log in to view more details.\n\n"
+                f"Regards,\nResolveIt"
+            )
+            send_email_safely(subject, [comp['user_email']], body)
+    except Exception as e:
+        print(f"[mail] reply_to_complaint notification error: {e}")
     return redirect(url_for('admin_dashboard'))
 
 @app.route('/download_csv')
