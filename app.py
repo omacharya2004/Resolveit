@@ -1,702 +1,540 @@
-import os
-import time
-import sqlite3
-from datetime import datetime
-from typing import Dict, List, Optional, Set, Tuple
-
-from flask import Flask, render_template, request, redirect, url_for, session as flask_session, flash, send_from_directory
-from flask_socketio import SocketIO, join_room, leave_room, emit
-from flask_login import (
-    LoginManager,
-    UserMixin,
-    login_user,
-    login_required,
-    logout_user,
-    current_user,
-)
+from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime, timedelta
+import sqlite3
+import os
+import csv
+import io
+from flask_mail import Mail, Message
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from reportlab.lib.units import inch
 
+app = Flask(__name__)
+app.secret_key = 'your-secret-key-here'  # Change this in production
 
-# -----------------------------
-# Configuration
-# -----------------------------
+# Initialize Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'Please log in to access this page.'
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key")
-DEFAULT_ROOM = "0000"
-ENABLE_SQLITE = os.environ.get("CHAT_USE_SQLITE", "1") == "1"
-SQLITE_DB_PATH = os.environ.get("CHAT_SQLITE_PATH", os.path.join(os.path.dirname(__file__), "chat.db"))
+# Flask-Mail configuration (use environment variables; falls back to disabled if missing)
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587)) if os.environ.get('MAIL_PORT') else None
+app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'true').lower() == 'true' if os.environ.get('MAIL_USE_TLS') else None
+app.config['MAIL_USE_SSL'] = os.environ.get('MAIL_USE_SSL', 'false').lower() == 'true' if os.environ.get('MAIL_USE_SSL') else None
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', os.environ.get('MAIL_USERNAME'))
 
+mail = Mail(app)
 
-def create_app() -> Flask:
-    app = Flask(__name__)
-    app.config["SECRET_KEY"] = SECRET_KEY
-    return app
+def send_email_safely(subject: str, recipients: list[str], body: str) -> None:
+    """Send an email and swallow errors so app flow is never blocked."""
+    try:
+        # If MAIL_SERVER is not configured, skip sending silently
+        if not app.config.get('MAIL_SERVER') or not recipients:
+            return
+        msg = Message(subject=subject, recipients=recipients, body=body)
+        # Default sender is configured above; Message will use it
+        mail.send(msg)
+    except Exception as e:
+        # Log to console for debug; do not interrupt request
+        print(f"[mail] Failed to send email: {e}")
 
+# Database setup
+# Use a writable path on Vercel's serverless environment, or allow override via env
+tmp_db_default = '/tmp/complaints.db' if os.environ.get('VERCEL') else 'complaints.db'
+DATABASE = os.environ.get('DATABASE_PATH', tmp_db_default)
 
-app = create_app()
-# Use threading mode for broad Windows compatibility; can be overridden via env
-ASYNC_MODE = os.environ.get("SOCKETIO_ASYNC", "threading")
-socketio = SocketIO(app, async_mode=ASYNC_MODE, cors_allowed_origins="*")
+def init_db():
+    """Initialize the database with required tables"""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    
+    # Create users table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT DEFAULT 'user'
+        )
+    ''')
+    
+    # Create complaints table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS complaints (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            category TEXT DEFAULT 'General',
+            priority TEXT DEFAULT 'Medium',
+            status TEXT DEFAULT 'Pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            admin_reply TEXT,
+            replied_at TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    ''')
+    
+    # Add new columns to existing table if they don't exist
+    try:
+        cursor.execute('ALTER TABLE complaints ADD COLUMN category TEXT DEFAULT "General"')
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    
+    try:
+        cursor.execute('ALTER TABLE complaints ADD COLUMN priority TEXT DEFAULT "Medium"')
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    
+    # Add admin_reply and replied_at if they don't exist (for reply feature)
+    try:
+        cursor.execute('ALTER TABLE complaints ADD COLUMN admin_reply TEXT')
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute('ALTER TABLE complaints ADD COLUMN replied_at TIMESTAMP')
+    except sqlite3.OperationalError:
+        pass
+    
+    # Create default admin user if not exists
+    cursor.execute('SELECT COUNT(*) FROM users WHERE role = "admin"')
+    admin_count = cursor.fetchone()[0]
+    
+    if admin_count == 0:
+        admin_password = generate_password_hash('admin123')
+        cursor.execute('''
+            INSERT INTO users (name, email, password, role)
+            VALUES (?, ?, ?, ?)
+        ''', ('Admin User', 'om_admin@gmail.com', admin_password, 'admin'))
+    
+    conn.commit()
+    conn.close()
 
-login_manager = LoginManager(app)
-login_manager.login_view = "login"
+# Ensure DB schema is initialized on import (covers `flask run` and WSGI servers)
+try:
+    init_db()
+except Exception as e:
+    print(f"[init_db] Schema initialization failed: {e}")
 
-
-# -----------------------------
-# In-memory state
-# -----------------------------
-
-# room -> list of message dicts {username, text, timestamp_iso}
-room_messages: Dict[str, List[dict]] = {}
-
-# room -> set of usernames
-room_online_users: Dict[str, Set[str]] = {}
-
-# username -> sid (latest)
-username_to_sid: Dict[str, str] = {}
-
-# Track online users and last seen
-online_users: Set[str] = set()
-last_seen_iso: Dict[str, str] = {}
-
-# simple in-memory increasing id (per-process)
-_last_message_id: int = int(time.time() * 1000)
-
-# Reactions state: message_id -> username -> emoji
-reactions_by_message: Dict[int, Dict[str, str]] = {}
-
-# Groups: id -> {id, name, members:Set[str], messages:List[dict]}
-groups: Dict[str, dict] = {}
-# username -> set(group_id)
-username_to_groups: Dict[str, Set[str]] = {}
-
-# Media storage
-UPLOAD_DIR = os.path.join(os.path.dirname(__file__), 'static', 'uploads')
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-
-def generate_message_id() -> int:
-    global _last_message_id
-    _last_message_id += 1
-    return _last_message_id
-
-
-def generate_group_id() -> str:
-    return f"g-{int(time.time()*1000)}"
-
-
-# -----------------------------
-# SQLite persistence (messages optional, users required)
-# -----------------------------
-
-# Adjusted to allow optional message_id for in-memory storage
-
-def _sqlite_connect() -> sqlite3.Connection:
-    conn = sqlite3.connect(SQLITE_DB_PATH)
+def get_db_connection():
+    """Get database connection"""
+    conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     return conn
 
-
-def _sqlite_init() -> None:
-    conn = _sqlite_connect()
-    try:
-        # Users table (always available)
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT NOT NULL UNIQUE,
-                password_hash TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            );
-            """
-        )
-        # Add email column if missing
-        try:
-            conn.execute("ALTER TABLE users ADD COLUMN email TEXT")
-        except Exception:
-            pass
-        # Messages table (optional usage gated by ENABLE_SQLITE)
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                room TEXT NOT NULL,
-                username TEXT NOT NULL,
-                text TEXT NOT NULL,
-                timestamp_iso TEXT NOT NULL,
-                message_id INTEGER
-            );
-            """
-        )
-        # Add message_id column if missing (for existing deployments)
-        try:
-            conn.execute("ALTER TABLE messages ADD COLUMN message_id INTEGER")
-        except Exception:
-            pass
-        conn.commit()
-    finally:
-        conn.close()
-
-
-def save_message(room: str, username: str, text: str, timestamp_iso: str, message_id: Optional[int] = None) -> None:
-    if ENABLE_SQLITE:
-        conn = _sqlite_connect()
-        try:
-            conn.execute(
-                "INSERT INTO messages (room, username, text, timestamp_iso, message_id) VALUES (?, ?, ?, ?, ?)",
-                (room, username, text, timestamp_iso, message_id),
-            )
-            conn.commit()
-        finally:
-            conn.close()
-    else:
-        room_messages.setdefault(room, []).append(
-            {"username": username, "text": text, "timestamp_iso": timestamp_iso, "message_id": message_id}
-        )
-        # Keep only last 200 in memory per room to bound memory
-        if len(room_messages[room]) > 200:
-            room_messages[room] = room_messages[room][-200:]
-
-
-def load_last_messages(room: str, limit: int = 50) -> List[dict]:
-    if ENABLE_SQLITE:
-        conn = _sqlite_connect()
-        try:
-            rows = conn.execute(
-                "SELECT username, text, timestamp_iso, message_id FROM messages WHERE room = ? ORDER BY id DESC LIMIT ?",
-                (room, limit),
-            ).fetchall()
-            # reverse to oldest->newest
-            return [
-                {"username": r["username"], "text": r["text"], "timestamp_iso": r["timestamp_iso"], "message_id": r["message_id"]}
-                for r in reversed(rows)
-            ]
-        finally:
-            conn.close()
-    else:
-        return list(room_messages.get(room, []))[-limit:]
-
-
-# -----------------------------
-# Auth: User model and helpers
-# -----------------------------
-
 class User(UserMixin):
-    def __init__(self, user_id: int, username: str, password_hash: str):
-        self.id = str(user_id)
-        self.username = username
-        self.password_hash = password_hash
-
-
-def get_user_by_id(user_id: str) -> Optional[User]:
-    conn = _sqlite_connect()
-    try:
-        row = conn.execute("SELECT id, username, password_hash FROM users WHERE id = ?", (user_id,)).fetchone()
-        if row:
-            return User(row["id"], row["username"], row["password_hash"])
-        return None
-    finally:
-        conn.close()
-
-
-def get_user_by_username(username: str) -> Optional[User]:
-    conn = _sqlite_connect()
-    try:
-        row = conn.execute("SELECT id, username, password_hash FROM users WHERE username = ?", (username,)).fetchone()
-        if row:
-            return User(row["id"], row["username"], row["password_hash"])
-        return None
-    finally:
-        conn.close()
-
-
-def get_user_email(username: str) -> Optional[str]:
-    conn = _sqlite_connect()
-    try:
-        row = conn.execute("SELECT email FROM users WHERE username = ?", (username,)).fetchone()
-        if row:
-            return row["email"]
-        return None
-    finally:
-        conn.close()
-
-
-def create_user(username: str, password: str, email: Optional[str] = None) -> Tuple[bool, Optional[str]]:
-    username_n = normalize_username(username)
-    if not username_n:
-        return False, "Invalid username"
-    if get_user_by_username(username_n):
-        return False, "Username already exists"
-    pw_hash = generate_password_hash(password)
-    conn = _sqlite_connect()
-    try:
-        conn.execute(
-            "INSERT INTO users (username, password_hash, created_at, email) VALUES (?, ?, ?, ?)",
-            (username_n, pw_hash, now_iso(), (email or None)),
-        )
-        conn.commit()
-        return True, None
-    finally:
-        conn.close()
-
+    def __init__(self, id, name, email, role):
+        self.id = id
+        self.name = name
+        self.email = email
+        self.role = role
 
 @login_manager.user_loader
-def load_user(user_id: str) -> Optional[User]:
-    return get_user_by_id(user_id)
+def load_user(user_id):
+    conn = get_db_connection()
+    user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+    conn.close()
+    
+    if user:
+        return User(user['id'], user['name'], user['email'], user['role'])
+    return None
 
-
-# -----------------------------
-# Helpers
-# -----------------------------
-
-def current_username() -> Optional[str]:
-    if current_user and getattr(current_user, "is_authenticated", False):
-        return current_user.username
-    return flask_session.get("username")
-
-
-def current_room() -> str:
-    return flask_session.get("room", DEFAULT_ROOM)
-
-
-def now_iso() -> str:
-    return datetime.utcnow().isoformat(timespec="seconds") + "Z"
-
-
-def broadcast_online_users(room: str) -> None:
-    users = sorted(room_online_users.get(room, set()))
-    socketio.emit("online_users", {"room": room, "users": users}, room=room)
-
-
-def normalize_room_code(room: str) -> str:
-    # Normalize: keep digits only and ensure 4-digit code
-    digits = ''.join(ch for ch in (room or '') if ch.isdigit())
-    if not digits:
-        return DEFAULT_ROOM
-    # take first 4 digits; if less, left-pad with zeros
-    digits = digits[:4]
-    if len(digits) < 4:
-        digits = digits.rjust(4, '0')
-    return digits
-
-
-def normalize_username(username: str) -> str:
-    # Normalize usernames: lowercase, trim, replace spaces with dashes, allow alnum and dashes only
-    u = (username or '').strip().lower().replace(' ', '-')
-    cleaned = []
-    for ch in u:
-        if ch.isalnum() or ch == '-':
-            cleaned.append(ch)
-    u = ''.join(cleaned)
-    return u[:50]
-
-
-# -----------------------------
-# Routes
-# -----------------------------
-
-@app.route("/")
+@app.route('/')
 def index():
-    # Support invite links: /?room=<code>
-    room_qs = request.args.get("room")
-    if room_qs:
-        flask_session["invite_room"] = normalize_room_code(room_qs)
     if current_user.is_authenticated:
-        # If there was an invite, preselect it
-        default_room = flask_session.pop("invite_room", None) or DEFAULT_ROOM
-        return render_template("index.html", default_room=default_room)
-    # Not authenticated: send to login; invite_room (if any) is preserved in session
-    return redirect(url_for("login"))
+        if current_user.role == 'admin':
+            return redirect(url_for('admin_dashboard'))
+        else:
+            return redirect(url_for('user_dashboard'))
+    return redirect(url_for('login'))
 
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        name = request.form['name']
+        email = request.form['email']
+        password = request.form['password']
+        
+        conn = get_db_connection()
+        
+        # Check if email already exists
+        existing_user = conn.execute('SELECT id FROM users WHERE email = ?', (email,)).fetchone()
+        
+        if existing_user:
+            flash('Email already registered. Please use a different email.', 'error')
+            conn.close()
+            return render_template('register.html')
+        
+        # Hash password and insert user
+        hashed_password = generate_password_hash(password)
+        conn.execute('''
+            INSERT INTO users (name, email, password, role)
+            VALUES (?, ?, ?, ?)
+        ''', (name, email, hashed_password, 'user'))
+        
+        conn.commit()
+        conn.close()
+        
+        flash('Registration successful! Please log in.', 'success')
+        return redirect(url_for('login'))
+    
+    return render_template('register.html')
 
-@app.post("/join")
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+        
+        conn = get_db_connection()
+        user = conn.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
+        conn.close()
+        
+        if user and check_password_hash(user['password'], password):
+            user_obj = User(user['id'], user['name'], user['email'], user['role'])
+            login_user(user_obj)
+            
+            if user['role'] == 'admin':
+                return redirect(url_for('admin_dashboard'))
+            else:
+                return redirect(url_for('user_dashboard'))
+        else:
+            flash('Invalid email or password.', 'error')
+    
+    return render_template('login.html')
+
+@app.route('/logout')
 @login_required
-def join():
-    username = current_username()
-    room = normalize_room_code(request.form.get("room", DEFAULT_ROOM))
-    if not username:
-        return redirect(url_for("login"))
-    flask_session["username"] = username  # keep for socket session access
-    flask_session["room"] = room
-    return redirect(url_for("chat"))
-
-
-@app.get("/chat")
-@login_required
-def chat():
-    username = current_username()
-    room = current_room()
-    if not username:
-        return redirect(url_for("login"))
-    return render_template("chat.html", username=username, room=room)
-
-
-@app.get("/logout")
 def logout():
     logout_user()
-    flask_session.clear()
-    return redirect(url_for("login"))
+    flash('You have been logged out successfully.', 'info')
+    return redirect(url_for('login'))
 
+@app.route('/user_dashboard')
+@login_required
+def user_dashboard():
+    if current_user.role == 'admin':
+        return redirect(url_for('admin_dashboard'))
+    
+    conn = get_db_connection()
+    complaints = conn.execute('''
+        SELECT * FROM complaints 
+        WHERE user_id = ? 
+        ORDER BY created_at DESC
+    ''', (current_user.id,)).fetchall()
+    conn.close()
+    
+    return render_template('dashboard.html', complaints=complaints)
 
-# -----------------------------
-# Auth routes
-# -----------------------------
+@app.route('/submit_complaint', methods=['GET', 'POST'])
+@login_required
+def submit_complaint():
+    if current_user.role == 'admin':
+        return redirect(url_for('admin_dashboard'))
+    
+    if request.method == 'POST':
+        title = request.form['title']
+        description = request.form['description']
+        category = request.form.get('category', 'General')
+        priority = request.form.get('priority', 'Medium')
+        
+        conn = get_db_connection()
+        conn.execute('''
+            INSERT INTO complaints (user_id, title, description, category, priority, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (current_user.id, title, description, category, priority, 'Pending'))
+        
+        conn.commit()
+        conn.close()
+        
+        flash('Complaint submitted successfully!', 'success')
 
-@app.get("/login")
-def login():
-    if current_user.is_authenticated:
-        return redirect(url_for("index"))
-    return render_template("login.html")
-
-
-@app.post("/login")
-def login_post():
-    username = normalize_username(request.form.get("username") or "")
-    password = request.form.get("password") or ""
-    user = get_user_by_username(username)
-    if not user or not check_password_hash(user.password_hash, password):
-        flash("Invalid username or password", "danger")
-        return redirect(url_for("login"))
-    login_user(user)
-    flask_session["username"] = user.username
-    # After login, if we have an invite intent, go to index with that as default
-    invite_room = flask_session.pop("invite_room", None)
-    if invite_room:
-        flask_session["room"] = invite_room
-        return redirect(url_for("chat"))
-    return redirect(url_for("index"))
-
-
-@app.get("/register")
-def register():
-    if current_user.is_authenticated:
-        return redirect(url_for("index"))
-    return render_template("register.html")
-
-
-@app.post("/register")
-def register_post():
-    username = normalize_username(request.form.get("username") or "")
-    password = request.form.get("password") or ""
-    confirm = request.form.get("confirm") or ""
-    email = (request.form.get("email") or "").strip() or None
-    if not username or not password or password != confirm:
-        flash("Please provide username and matching passwords", "danger")
-        return redirect(url_for("register"))
-    ok, err = create_user(username, password, email)
-    if not ok:
-        flash(err or "Registration failed", "danger")
-        return redirect(url_for("register"))
-    user = get_user_by_username(username)
-    if user:
-        login_user(user)
-        flask_session["username"] = user.username
-        invite_room = flask_session.pop("invite_room", None)
-        if invite_room:
-            flask_session["room"] = invite_room
-            return redirect(url_for("chat"))
-    flash("Registration successful. Please log in.", "success")
-    return redirect(url_for("login"))
-
-
-# -----------------------------
-# About page
-# -----------------------------
-
-@app.get("/about")
-def about():
-    return render_template("about.html")
-
-# Serve uploaded files explicitly if needed
-@app.get('/uploads/<path:filename>')
-def uploaded_file(filename):
-    return send_from_directory(UPLOAD_DIR, filename)
-
-# Upload endpoint (for images/audio)
-# REMOVED upload endpoint
-
-# -----------------------------
-# Socket.IO events
-# -----------------------------
-
-@socketio.on("connect")
-def handle_connect():
-    username = current_username()
-    room = current_room()
-    if not username:
-        # Not joined via HTTP yet; refuse until they pick a username
-        return False
-    username_to_sid[username] = request.sid  # type: ignore[attr-defined]
-    online_users.add(username)
-    last_seen_iso[username] = now_iso()
-    # Send groups for this user
-    user_groups = [
-        {"id": gid, "name": groups[gid]["name"], "members": sorted(list(groups[gid]["members"]))}
-        for gid in sorted(list(username_to_groups.get(username, set()))) if gid in groups
-    ]
-    emit("groups_for_user", {"groups": user_groups})
-
-
-@socketio.on("join_room")
-def handle_join_room(data):
-    username = current_username()
-    room = normalize_room_code(data.get("room") or current_room())
-    if not username:
-        return
-    flask_session["room"] = room
-    join_room(room)
-    room_online_users.setdefault(room, set()).add(username)
-    username_to_sid[username] = request.sid  # type: ignore[attr-defined]
-
-    # Send last messages to the new user only, including reaction_state if available
-    history = load_last_messages(room, limit=20)
-    enriched = []
-    for m in history:
-        mid = m.get("message_id") if isinstance(m, dict) else None
-        if mid is not None and int(mid) in reactions_by_message:
-            per_user = reactions_by_message[int(mid)]
-            counts: Dict[str, int] = {}
-            by: Dict[str, List[str]] = {}
-            for user, em in per_user.items():
-                counts[em] = counts.get(em, 0) + 1
-                by.setdefault(em, []).append(user)
-            m2 = dict(m)
-            m2["reaction_state"] = {"counts": counts, "by": by}
-            enriched.append(m2)
-        else:
-            enriched.append(m)
-    emit("chat_history", {"room": room, "messages": enriched})
-
-    # Notify others in room
-    emit("user_joined", {"room": room, "username": username, "timestamp_iso": now_iso()}, room=room, include_self=False)
-    broadcast_online_users(room)
-
-
-@socketio.on("leave_room")
-def handle_leave_room(data):
-    username = current_username()
-    room = normalize_room_code(data.get("room") or current_room())
-    if not username:
-        return
-    leave_room(room)
-    if room in room_online_users and username in room_online_users[room]:
-        room_online_users[room].remove(username)
-    emit("user_left", {"room": room, "username": username, "timestamp_iso": now_iso()}, room=room)
-    broadcast_online_users(room)
-
-
-@socketio.on("send_message")
-def handle_send_message(data):
-    username = current_username()
-    room = normalize_room_code(data.get("room") or current_room())
-    text = (data.get("text") or "").strip()
-    if not username or not text:
-        return
-    ts = now_iso()
-    message_id = generate_message_id()
-    save_message(room, username, text, ts, message_id=message_id)
-    emit(
-        "room_message",
-        {"room": room, "username": username, "text": text, "timestamp_iso": ts, "message_id": message_id},
-        room=room,
-    )
-
-
-# Typing indicators
-@socketio.on("typing")
-def handle_typing(data):
-    username = current_username()
-    if not username:
-        return
-    room = normalize_room_code(data.get("room") or current_room())
-    is_typing = bool(data.get("is_typing"))
-    # Broadcast to others in the room
-    emit("user_typing", {"room": room, "username": username, "is_typing": is_typing, "timestamp_iso": now_iso()}, room=room, include_self=False)
-
-
-# Delivery receipts
-@socketio.on("message_delivered")
-def handle_message_delivered(data):
-    sender = (data.get("sender") or "").strip()
-    message_id = data.get("message_id")
-    if not sender or message_id is None:
-        return
-    target_sid = username_to_sid.get(sender)
-    if target_sid:
-        emit("message_delivered", {"message_id": message_id}, to=target_sid)
-
-
-@socketio.on("message_seen")
-def handle_message_seen(data):
-    sender = (data.get("sender") or "").strip()
-    message_id = data.get("message_id")
-    if not sender or message_id is None:
-        return
-    target_sid = username_to_sid.get(sender)
-    if target_sid:
-        emit("message_seen", {"message_id": message_id}, to=target_sid)
-
-
-# Reactions
-@socketio.on("add_reaction")
-def handle_add_reaction(data):
-    username = current_username()
-    if not username:
-        return
-    # accept room as-is to support group namespaces like group:ID
-    room = (data.get("room") or current_room())
-    message_id = data.get("message_id")
-    emoji = (data.get("emoji") or "").strip()
-    if not message_id or not emoji:
-        return
-    per_user = reactions_by_message.setdefault(int(message_id), {})
-    # Enforce only one reaction per user per message: replace any previous
-    per_user[username] = emoji
-    # Build counts and by lists
-    counts: Dict[str, int] = {}
-    by: Dict[str, List[str]] = {}
-    for user, em in per_user.items():
-        counts[em] = counts.get(em, 0) + 1
-        by.setdefault(em, []).append(user)
-    emit("reaction_state", {"message_id": message_id, "counts": counts, "by": by}, room=room)
-
-
-# Group management
-@socketio.on('create_group')
-def handle_create_group(data):
-    creator = current_username()
-    if not creator:
-        return
-    name = (data.get('name') or '').strip() or f"Group {now_iso()}"
-    members = set([creator] + [m.strip().lower() for m in (data.get('members') or []) if m and isinstance(m, str)])
-    gid = generate_group_id()
-    groups[gid] = {"id": gid, "name": name, "members": members, "messages": []}
-    for m in members:
-        username_to_groups.setdefault(m, set()).add(gid)
-        # If online, notify user and auto-join the Socket.IO room
-        sid = username_to_sid.get(m)
-        if sid:
-            emit('group_created', {"id": gid, "name": name, "members": sorted(list(members))}, to=sid)
-    # Also notify creator of refreshed list
-    user_groups = [
-        {"id": g, "name": groups[g]["name"], "members": sorted(list(groups[g]["members"]))}
-        for g in sorted(list(username_to_groups.get(creator, set()))) if g in groups
-    ]
-    emit("groups_for_user", {"groups": user_groups})
-
-@socketio.on('join_group')
-def handle_join_group(data):
-    username = current_username()
-    gid = (data.get('group_id') or '').strip()
-    if not username or gid not in groups or username not in groups[gid]['members']:
-        return
-    join_room(f"group:{gid}")
-    # Optionally send last messages
-    history = groups[gid].get('messages', [])[-50:]
-    emit('group_history', {"group_id": gid, "messages": history})
-
-@socketio.on('leave_group')
-def handle_leave_group(data):
-    username = current_username()
-    gid = (data.get('group_id') or '').strip()
-    if not username or gid not in groups:
-        return
-    leave_room(f"group:{gid}")
-
-@socketio.on('group_message')
-def handle_group_message(data):
-    username = current_username()
-    gid = (data.get('group_id') or '').strip()
-    text = (data.get('text') or '').strip()
-    if not username or gid not in groups or username not in groups[gid]['members'] or not text:
-        return
-    ts = now_iso()
-    mid = generate_message_id()
-    payload = {"group_id": gid, "username": username, "text": text, "timestamp_iso": ts, "message_id": mid}
-    groups[gid]['messages'].append(payload)
-    if len(groups[gid]['messages']) > 200:
-        groups[gid]['messages'] = groups[gid]['messages'][-200:]
-    emit('group_message', payload, room=f"group:{gid}")
-
-@socketio.on('group_typing')
-def handle_group_typing(data):
-    username = current_username()
-    gid = (data.get('group_id') or '').strip()
-    is_typing = bool(data.get('is_typing'))
-    if not username or gid not in groups or username not in groups[gid]['members']:
-        return
-    emit('group_typing', {"group_id": gid, "username": username, "is_typing": is_typing, "timestamp_iso": now_iso()}, room=f"group:{gid}", include_self=False)
-
-@socketio.on('message_delivered_group')
-def handle_group_delivered(data):
-    sender = (data.get('sender') or '').strip()
-    message_id = data.get('message_id')
-    if not sender or message_id is None:
-        return
-    sid = username_to_sid.get(sender)
-    if sid:
-        emit('message_delivered_group', {"message_id": message_id}, to=sid)
-
-@socketio.on('message_seen_group')
-def handle_group_seen(data):
-    sender = (data.get('sender') or '').strip()
-    message_id = data.get('message_id')
-    if not sender or message_id is None:
-        return
-    sid = username_to_sid.get(sender)
-    if sid:
-        emit('message_seen_group', {"message_id": message_id}, to=sid)
-
-
-@socketio.on("disconnect")
-def handle_disconnect():
-    username = current_username()
-    room = current_room()
-    if username:
-        online_users.discard(username)
-        last_seen_iso[username] = now_iso()
-    if username and room in room_online_users and username in room_online_users[room]:
-        room_online_users[room].remove(username)
-        emit("user_left", {"room": room, "username": username, "timestamp_iso": now_iso()}, room=room)
-        broadcast_online_users(room)
-
-# Profile fetch
-@socketio.on('get_profile')
-def handle_get_profile(data):
-    requester = current_username()
-    username = (data.get('username') or '').strip().lower()
-    if not requester or not username:
-        return
-    emit('profile', {
-        'username': username,
-        'online': username in online_users,
-        'last_seen': last_seen_iso.get(username),
-        'email': get_user_email(username)
-    })
-
-
-def main():
-    _sqlite_init()
-    base_port = int(os.environ.get("PORT", "5000"))
-    host = os.environ.get("HOST", "127.0.0.1")
-
-    # Try a few consecutive ports to avoid sock.bind errors if busy
-    max_tries = 10
-    last_err = None
-    for i in range(max_tries):
-        port = base_port + i
+        # Send confirmation email to the user (non-blocking)
         try:
-            socketio.run(app, host=host, port=port)
-            return
-        except OSError as e:
-            last_err = e
-            continue
-    # If we get here, all attempts failed
-    raise SystemExit(f"Failed to bind on {host}:{base_port}-{base_port+max_tries-1}: {last_err}")
+            subject = 'ResolveIt: Complaint submitted successfully'
+            body = (
+                f"Hello {current_user.name},\n\n"
+                f"We have received your complaint titled: '{title}'.\n"
+                f"Current status: Pending.\n\n"
+                f"We will keep you updated on any changes.\n\n"
+                f"Regards,\nResolveIt"
+            )
+            send_email_safely(subject, [current_user.email], body)
+        except Exception as e:
+            print(f"[mail] submit_complaint notification error: {e}")
+        return redirect(url_for('user_dashboard'))
+    
+    return render_template('submit_complaint.html')
 
+@app.route('/admin_dashboard')
+@login_required
+def admin_dashboard():
+    if current_user.role != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('user_dashboard'))
+    
+    conn = get_db_connection()
+    complaints = conn.execute('''
+        SELECT c.*, u.name as user_name, u.email as user_email
+        FROM complaints c
+        JOIN users u ON c.user_id = u.id
+        ORDER BY c.created_at DESC
+    ''').fetchall()
+    conn.close()
+    
+    return render_template('admin.html', complaints=complaints)
 
-if __name__ == "__main__":
-    main()
+@app.route('/update_status/<int:complaint_id>', methods=['POST'])
+@login_required
+def update_status(complaint_id):
+    if current_user.role != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('user_dashboard'))
+    
+    new_status = request.form['status']
+    
+    conn = get_db_connection()
+    # Fetch complaint details and user email for notification
+    comp = conn.execute('''
+        SELECT c.title, c.created_at, u.email AS user_email, u.name AS user_name
+        FROM complaints c
+        JOIN users u ON c.user_id = u.id
+        WHERE c.id = ?
+    ''', (complaint_id,)).fetchone()
+    
+    # Enforce 7-day minimum before allowing Resolved
+    if new_status == 'Resolved' and comp and comp['created_at']:
+        try:
+            created_dt = datetime.fromisoformat(str(comp['created_at']))
+        except Exception:
+            # Fallback parse for sqlite timestamp "YYYY-MM-DD HH:MM:SS"
+            created_dt = datetime.strptime(str(comp['created_at'])[:19], '%Y-%m-%d %H:%M:%S')
+        if datetime.now() < created_dt + timedelta(days=7):
+            conn.close()
+            flash('Complaints can only be marked Resolved after 7 days from submission.', 'error')
+            return redirect(url_for('admin_dashboard'))
 
+    conn.execute('''
+        UPDATE complaints 
+        SET status = ? 
+        WHERE id = ?
+    ''', (new_status, complaint_id))
+    conn.commit()
+    conn.close()
+    
+    flash('Complaint status updated successfully!', 'success')
 
+    # Send status update email to the user (non-blocking)
+    try:
+        if comp and comp['user_email']:
+            subject = 'ResolveIt: Complaint status updated'
+            body = (
+                f"Hello {comp['user_name']},\n\n"
+                f"The status of your complaint has been updated.\n"
+                f"Title: '{comp['title']}'\n"
+                f"New Status: {new_status}\n\n"
+                f"You can log in to view more details.\n\n"
+                f"Regards,\nResolveIt"
+            )
+            send_email_safely(subject, [comp['user_email']], body)
+    except Exception as e:
+        print(f"[mail] update_status notification error: {e}")
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/reply/<int:complaint_id>', methods=['POST'])
+@login_required
+def reply_to_complaint(complaint_id):
+    if current_user.role != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('user_dashboard'))
+    reply_text = request.form.get('reply', '').strip()
+    if not reply_text:
+        flash('Reply cannot be empty.', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+    conn = get_db_connection()
+    # Fetch for notification and to validate complaint exists
+    comp = conn.execute('''
+        SELECT c.id, c.status, c.title, u.email AS user_email, u.name AS user_name
+        FROM complaints c
+        JOIN users u ON c.user_id = u.id
+        WHERE c.id = ?
+    ''', (complaint_id,)).fetchone()
+    if not comp:
+        conn.close()
+        flash('Complaint not found.', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+    # Save reply and timestamp; optionally move to In Progress if still Pending
+    new_status = comp['status'] if comp['status'] != 'Pending' else 'In Progress'
+    conn.execute('''
+        UPDATE complaints
+        SET admin_reply = ?, replied_at = CURRENT_TIMESTAMP, status = ?
+        WHERE id = ?
+    ''', (reply_text, new_status, complaint_id))
+    conn.commit()
+    conn.close()
+
+    flash('Reply sent to user successfully!', 'success')
+
+    # Send reply email to the user (non-blocking)
+    try:
+        if comp and comp['user_email']:
+            subject = 'ResolveIt: Update on your complaint'
+            body = (
+                f"Hello {comp['user_name']},\n\n"
+                f"An administrator has replied to your complaint.\n"
+                f"Title: '{comp['title']}'\n\n"
+                f"Reply:\n{reply_text}\n\n"
+                f"You can log in to view more details.\n\n"
+                f"Regards,\nResolveIt"
+            )
+            send_email_safely(subject, [comp['user_email']], body)
+    except Exception as e:
+        print(f"[mail] reply_to_complaint notification error: {e}")
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/download_csv')
+@login_required
+def download_csv():
+    if current_user.role != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('user_dashboard'))
+    
+    conn = get_db_connection()
+    complaints = conn.execute('''
+        SELECT c.title, c.description, c.category, c.priority, c.status, c.created_at, u.name as user_name, u.email as user_email
+        FROM complaints c
+        JOIN users u ON c.user_id = u.id
+        ORDER BY c.created_at DESC
+    ''').fetchall()
+    conn.close()
+    
+    # Create CSV content
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    writer.writerow(['User', 'Title', 'Category', 'Priority', 'Status', 'Date'])
+    
+    # Write data
+    for complaint in complaints:
+        writer.writerow([
+            complaint['user_name'],
+            complaint['title'],
+            complaint['category'],
+            complaint['priority'],
+            complaint['status'],
+            complaint['created_at']
+        ])
+    
+    # Create response
+    response = make_response(output.getvalue())
+    response.headers['Content-Type'] = 'text/csv'
+    response.headers['Content-Disposition'] = f'attachment; filename=complaints_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+    
+    return response
+
+@app.route('/download_pdf')
+@login_required
+def download_pdf():
+    if current_user.role != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('user_dashboard'))
+    
+    conn = get_db_connection()
+    complaints = conn.execute('''
+        SELECT c.title, c.description, c.category, c.priority, c.status, c.created_at, u.name as user_name, u.email as user_email
+        FROM complaints c
+        JOIN users u ON c.user_id = u.id
+        ORDER BY c.created_at DESC
+    ''').fetchall()
+    conn.close()
+    
+    # Create PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=1*inch)
+    
+    # Styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        spaceAfter=30,
+        alignment=1,  # Center alignment
+        textColor=colors.darkblue
+    )
+    
+    # Content
+    story = []
+    
+    # Title
+    title = Paragraph("Complaints Management System - Report", title_style)
+    story.append(title)
+    story.append(Spacer(1, 20))
+    
+    # Report info
+    report_info = Paragraph(f"<b>Generated on:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal'])
+    story.append(report_info)
+    story.append(Paragraph(f"<b>Total Complaints:</b> {len(complaints)}", styles['Normal']))
+    story.append(Spacer(1, 20))
+    
+    # Table data
+    table_data = [['User', 'Title', 'Category', 'Priority', 'Status', 'Date']]
+    
+    for complaint in complaints:
+        table_data.append([
+            complaint['user_name'],
+            complaint['title'][:30] + '...' if len(complaint['title']) > 30 else complaint['title'],
+            complaint['category'],
+            complaint['priority'],
+            complaint['status'],
+            complaint['created_at'][:10]  # Date only
+        ])
+    
+    # Create table
+    table = Table(table_data, colWidths=[1.2*inch, 2*inch, 0.8*inch, 0.8*inch, 0.8*inch, 1*inch])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('FONTSIZE', (0, 1), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    
+    story.append(table)
+    
+    # Build PDF
+    doc.build(story)
+    buffer.seek(0)
+    
+    # Create response
+    response = make_response(buffer.getvalue())
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename=complaints_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    
+    return response
+@app.route('/about')
+def about():
+    return render_template('about.html')
+
+if __name__ == '__main__':
+    init_db()
+    # Bind to 0.0.0.0 and use PORT env var for Heroku/local container support
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=True, host='0.0.0.0', port=port)
