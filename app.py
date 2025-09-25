@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response
+from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response, jsonify
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
@@ -7,6 +7,8 @@ import os
 import csv
 import io
 import re
+import time
+from functools import wraps
 from flask_mail import Mail, Message
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -67,6 +69,9 @@ def validate_password(password):
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'  # Change this in production
+
+# Performance optimizations
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 31536000  # 1 year cache for static files
 
 # Initialize Flask-Login
 login_manager = LoginManager()
@@ -147,81 +152,93 @@ def restore_database():
 
 def init_db():
     """Initialize the database with required tables and ensure persistence"""
-    # Try to restore from backup if needed
-    restore_database()
-    
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    
-    # Create users table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            role TEXT DEFAULT 'user',
-            address TEXT DEFAULT ''
-        )
-    ''')
-    
-    # Add address column to existing users table if it doesn't exist
     try:
-        cursor.execute('ALTER TABLE users ADD COLUMN address TEXT DEFAULT ""')
-    except:
-        pass  # Column already exists
-    
-    # Create complaints table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS complaints (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            description TEXT NOT NULL,
-            category TEXT DEFAULT 'General',
-            priority TEXT DEFAULT 'Medium',
-            status TEXT DEFAULT 'Pending',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            admin_reply TEXT,
-            replied_at TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id)
-        )
-    ''')
-    
-    # Add new columns to existing table if they don't exist
-    try:
-        cursor.execute('ALTER TABLE complaints ADD COLUMN category TEXT DEFAULT "General"')
-    except sqlite3.OperationalError:
-        pass  # Column already exists
-    
-    try:
-        cursor.execute('ALTER TABLE complaints ADD COLUMN priority TEXT DEFAULT "Medium"')
-    except sqlite3.OperationalError:
-        pass  # Column already exists
-    
-    # Add admin_reply and replied_at if they don't exist (for reply feature)
-    try:
-        cursor.execute('ALTER TABLE complaints ADD COLUMN admin_reply TEXT')
-    except sqlite3.OperationalError:
-        pass
-    try:
-        cursor.execute('ALTER TABLE complaints ADD COLUMN replied_at TIMESTAMP')
-    except sqlite3.OperationalError:
-        pass
-    
-    # Create default admin user if not exists
-    cursor.execute('SELECT COUNT(*) FROM users WHERE role = "admin"')
-    admin_count = cursor.fetchone()[0]
-    
-    if admin_count == 0:
-        admin_password = generate_password_hash('admin123')
+        # Try to restore from backup if needed (only if database doesn't exist)
+        if not os.path.exists(DATABASE):
+            restore_database()
+        
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        
+        # Enable WAL mode for better performance
+        cursor.execute('PRAGMA journal_mode=WAL')
+        cursor.execute('PRAGMA synchronous=NORMAL')
+        cursor.execute('PRAGMA cache_size=10000')
+        cursor.execute('PRAGMA temp_store=MEMORY')
+        
+        # Create users table
         cursor.execute('''
-            INSERT INTO users (name, email, password, role)
-            VALUES (?, ?, ?, ?)
-        ''', ('Admin User', 'om_admin@gmail.com', admin_password, 'admin'))
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                role TEXT DEFAULT 'user',
+                address TEXT DEFAULT ''
+            )
+        ''')
+        
+        # Add address column to existing users table if it doesn't exist
+        try:
+            cursor.execute('ALTER TABLE users ADD COLUMN address TEXT DEFAULT ""')
+        except:
+            pass  # Column already exists
+        
+        # Create complaints table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS complaints (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                category TEXT DEFAULT 'General',
+                priority TEXT DEFAULT 'Medium',
+                status TEXT DEFAULT 'Pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                admin_reply TEXT,
+                replied_at TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+        ''')
     
-    conn.commit()
-    conn.close()
+        # Add new columns to existing table if they don't exist
+        try:
+            cursor.execute('ALTER TABLE complaints ADD COLUMN category TEXT DEFAULT "General"')
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        
+        try:
+            cursor.execute('ALTER TABLE complaints ADD COLUMN priority TEXT DEFAULT "Medium"')
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+    
+        # Add admin_reply and replied_at if they don't exist (for reply feature)
+        try:
+            cursor.execute('ALTER TABLE complaints ADD COLUMN admin_reply TEXT')
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute('ALTER TABLE complaints ADD COLUMN replied_at TIMESTAMP')
+        except sqlite3.OperationalError:
+            pass
+        
+        # Create default admin user if not exists
+        cursor.execute('SELECT COUNT(*) FROM users WHERE role = "admin"')
+        admin_count = cursor.fetchone()[0]
+        
+        if admin_count == 0:
+            admin_password = generate_password_hash('admin123')
+            cursor.execute('''
+                INSERT INTO users (name, email, password, role)
+                VALUES (?, ?, ?, ?)
+            ''', ('Admin User', 'om_admin@gmail.com', admin_password, 'admin'))
+    
+        conn.commit()
+        conn.close()
+        
+    except Exception as e:
+        print(f"Database initialization error: {e}")
+        # Continue anyway - the app can still work with basic functionality
 
 # Ensure DB schema is initialized on import (covers `flask run` and WSGI servers)
 try:
@@ -881,8 +898,91 @@ def update_profile():
         flash('An error occurred while updating your profile.', 'error')
         return redirect(url_for('profile'))
 
+@app.route('/health')
+def health_check():
+    """Health check endpoint for Render and monitoring"""
+    try:
+        # Quick database connectivity check
+        conn = get_db_connection()
+        conn.execute('SELECT 1')
+        conn.close()
+        
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat(),
+            'database': 'connected'
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'timestamp': datetime.now().isoformat(),
+            'error': str(e)
+        }), 500
+
+@app.route('/ping')
+def ping():
+    """Simple ping endpoint for load balancers"""
+    return 'pong', 200
+
+@app.route('/loading')
+def loading():
+    """Loading page for better user experience"""
+    return render_template('loading.html')
+
+# Performance optimization decorator
+def cache_response(timeout=300):
+    """Cache response for specified time in seconds"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Simple in-memory cache (for production, use Redis or similar)
+            cache_key = f"{request.endpoint}_{hash(str(request.args))}"
+            if hasattr(app, 'cache') and cache_key in app.cache:
+                cached_data, timestamp = app.cache[cache_key]
+                if time.time() - timestamp < timeout:
+                    return cached_data
+            
+            response = f(*args, **kwargs)
+            
+            if not hasattr(app, 'cache'):
+                app.cache = {}
+            app.cache[cache_key] = (response, time.time())
+            
+            return response
+        return decorated_function
+    return decorator
+
+@app.after_request
+def after_request(response):
+    """Add caching headers for better performance"""
+    # Cache static files for 1 year
+    if request.endpoint == 'static':
+        response.headers['Cache-Control'] = 'public, max-age=31536000'
+    # Cache HTML pages for 5 minutes
+    elif request.endpoint in ['index', 'about']:
+        response.headers['Cache-Control'] = 'public, max-age=300'
+    # No cache for dynamic content
+    else:
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    
+    return response
+
 if __name__ == '__main__':
-    init_db()
+    # Optimize for production
+    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    
+    # Initialize database only if needed
+    if not os.path.exists(DATABASE):
+        init_db()
+    
     # Bind to 0.0.0.0 and use PORT env var for Heroku/local container support
     port = int(os.environ.get('PORT', 5000))
-    app.run(debug=True, host='0.0.0.0', port=port)
+    
+    # Production optimizations
+    if not debug_mode:
+        # Use threaded mode for better performance
+        app.run(debug=False, host='0.0.0.0', port=port, threaded=True)
+    else:
+        app.run(debug=True, host='0.0.0.0', port=port)
