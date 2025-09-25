@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - ResolveIt{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-8">
+            <!-- Profile Header -->
+            <div class="card glass mb-4">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center mb-4">
+                        <div class="profile-avatar me-3">
+                            <i class="fas fa-user fa-2x"></i>
+                        </div>
+                        <div>
+                            <h2 class="gradient-text mb-1">{{ current_user.name }}</h2>
+                            <p class="text-muted mb-0">{{ current_user.email }}</p>
+                            <span class="badge bg-primary">{{ current_user.role.title() }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profile Form -->
+            <div class="card glass">
+                <div class="card-header bg-transparent border-0 p-4">
+                    <h4 class="gradient-text mb-0">
+                        <i class="fas fa-edit me-2"></i>Edit Profile
+                    </h4>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" action="{{ url_for('update_profile') }}" id="profileForm">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="name" class="form-label">
+                                    <i class="fas fa-user me-1"></i>Full Name
+                                </label>
+                                <input type="text" class="form-control" id="name" name="name" 
+                                       value="{{ current_user.name }}" required>
+                                <div class="form-text">Your full name as it appears on your account.</div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="email" class="form-label">
+                                    <i class="fas fa-envelope me-1"></i>Email Address
+                                </label>
+                                <input type="email" class="form-control" id="email" name="email" 
+                                       value="{{ current_user.email }}" required>
+                                <div class="form-text">This will be used for account notifications.</div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="address" class="form-label">
+                                <i class="fas fa-map-marker-alt me-1"></i>Address
+                            </label>
+                            <textarea class="form-control" id="address" name="address" rows="3" 
+                                      placeholder="Enter your complete address">{{ current_user.address or '' }}</textarea>
+                            <div class="form-text">Your complete address including street, city, state, and postal code.</div>
+                        </div>
+                        
+                        <div class="d-flex gap-3">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>Update Profile
+                            </button>
+                            <a href="{{ url_for('user_dashboard') }}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Account Information -->
+            <div class="card glass mt-4">
+                <div class="card-header bg-transparent border-0 p-4">
+                    <h4 class="gradient-text mb-0">
+                        <i class="fas fa-info-circle me-2"></i>Account Information
+                    </h4>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="info-item">
+                                <label class="info-label">User ID</label>
+                                <div class="info-value">{{ current_user.id }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="info-item">
+                                <label class="info-label">Account Type</label>
+                                <div class="info-value">
+                                    <span class="badge bg-primary">{{ current_user.role.title() }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="info-item">
+                                <label class="info-label">Email Status</label>
+                                <div class="info-value">
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check me-1"></i>Verified
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="info-item">
+                                <label class="info-label">Member Since</label>
+                                <div class="info-value">
+                                    <i class="fas fa-calendar me-1"></i>
+                                    <span id="memberSince">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card glass mt-4">
+                <div class="card-header bg-transparent border-0 p-4">
+                    <h4 class="gradient-text mb-0">
+                        <i class="fas fa-bolt me-2"></i>Quick Actions
+                    </h4>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <a href="{{ url_for('change_password') }}" class="btn btn-outline-warning w-100">
+                                <i class="fas fa-key fa-lg me-2"></i>
+                                <div class="d-block">
+                                    <div class="fw-bold">Change Password</div>
+                                    <small class="opacity-75">Update your password</small>
+                                </div>
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <a href="{{ url_for('user_dashboard') }}" class="btn btn-outline-primary w-100">
+                                <i class="fas fa-tachometer-alt fa-lg me-2"></i>
+                                <div class="d-block">
+                                    <div class="fw-bold">Dashboard</div>
+                                    <small class="opacity-75">View your complaints</small>
+                                </div>
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <a href="{{ url_for('submit_complaint') }}" class="btn btn-outline-success w-100">
+                                <i class="fas fa-plus fa-lg me-2"></i>
+                                <div class="d-block">
+                                    <div class="fw-bold">New Complaint</div>
+                                    <small class="opacity-75">Submit a new issue</small>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Form validation
+document.getElementById('profileForm').addEventListener('submit', function(e) {
+    const name = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    
+    if (!name || !email) {
+        e.preventDefault();
+        alert('Please fill in all required fields.');
+        return;
+    }
+    
+    // Email validation
+    const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailPattern.test(email)) {
+        e.preventDefault();
+        alert('Please enter a valid email address.');
+        return;
+    }
+});
+
+// Set member since date (placeholder)
+document.addEventListener('DOMContentLoaded', function() {
+    const memberSinceElement = document.getElementById('memberSince');
+    if (memberSinceElement) {
+        memberSinceElement.textContent = new Date().toLocaleDateString();
+    }
+});
+</script>
+{% endblock %}

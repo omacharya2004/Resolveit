@@ -1,145 +1,365 @@
 {% extends "base.html" %}
 
-{% block title %}User Dashboard - Complaint Management System{% endblock %}
+{% block title %}User Dashboard - ResolveIt{% endblock %}
 
 {% block content %}
-<!-- Welcome Section -->
-<div class="row mb-3 mb-md-5">
+<!-- Print Header (hidden by default, shown only when printing) -->
+<div class="print-header">
+    <h1>Complaint Management Dashboard</h1>
+    <div class="print-date">Generated on: <span id="printDate"></span></div>
+</div>
+
+<!-- AI-Powered Suggestions Section -->
+<div class="row mb-4" id="aiSuggestionsSection" style="display: none;">
     <div class="col-12">
-        <div class="card glass slide-up">
-            <div class="card-body text-center py-3 py-md-5">
-                <h1 class="gradient-text mb-2 mb-md-3 h3 h1-md">
-                    <i class="fas fa-tachometer-alt me-2 me-md-3"></i>Welcome to Your Dashboard
-                </h1>
-                <p class="text-muted mb-3 mb-md-4 small">Manage and track your complaints efficiently</p>
-                <a href="{{ url_for('submit_complaint') }}" class="btn btn-primary btn-lg w-100 w-md-auto">
-                    <i class="fas fa-plus me-2"></i>Submit New Complaint
-                </a>
+        <div class="card ai-suggestions-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-robot me-2 text-primary"></i>AI-Powered Suggestions
+                </h5>
+                <button class="btn btn-sm btn-outline-secondary" onclick="toggleAISuggestions()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="aiSuggestionsContent">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading suggestions...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Analyzing your complaints for intelligent suggestions...</p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Statistics Cards -->
+<!-- Modern Welcome Section with Enhanced Design -->
+<div class="row mb-4 mb-md-5">
+    <div class="col-12">
+        <div class="card glass slide-up position-relative overflow-hidden">
+            <div class="card-body text-center py-4 py-md-5">
+                <!-- Animated Background Elements -->
+                <div class="position-absolute top-0 start-0 w-100 h-100 opacity-10">
+                    <div class="floating-shape shape-1"></div>
+                    <div class="floating-shape shape-2"></div>
+                    <div class="floating-shape shape-3"></div>
+                </div>
+                
+                <div class="position-relative">
+                    <div class="mb-3 mb-md-4">
+                        <div class="dashboard-icon-container">
+                            <i class="fas fa-tachometer-alt dashboard-main-icon"></i>
+                        </div>
+                    </div>
+                    
+                    <h1 class="gradient-text mb-2 mb-md-3 h3 h1-md fw-bold">
+                        Welcome to Your Dashboard
+                </h1>
+                    <p class="text-muted mb-4 mb-md-4 fs-5">Manage and track your complaints efficiently with our modern interface</p>
+                    
+                    <div class="d-flex flex-column flex-md-row gap-3 justify-content-center align-items-center">
+                        <a href="{{ url_for('submit_complaint') }}" class="btn btn-primary btn-lg px-4 py-3 rounded-pill shadow-lg">
+                    <i class="fas fa-plus me-2"></i>Submit New Complaint
+                </a>
+                        <button class="btn btn-outline-primary btn-lg px-4 py-3 rounded-pill" onclick="refreshDashboard()">
+                            <i class="fas fa-sync-alt me-2"></i>Refresh Data
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modern Statistics Cards with Enhanced Design -->
 {% if complaints %}
-<div class="row mb-3 mb-md-5">
-    <div class="col-12 col-sm-6 col-lg-4 mb-3">
-        <div class="stat-card card-hover-effect animate-slide-left">
-            <div class="text-warning">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <i class="fas fa-clock fa-2x fa-md-3x"></i>
-                    <div class="progress-circle" data-percentage="{{ (complaints|selectattr('status', 'equalto', 'Pending')|list|length / complaints|length * 100)|round }}">
-                        <svg class="progress-ring" width="50" height="50" class="d-md-none">
-                            <circle class="progress-ring-circle" stroke="#ffc107" stroke-width="3" fill="transparent" r="22" cx="25" cy="25"/>
-                        </svg>
-                        <svg class="progress-ring" width="60" height="60" class="d-none d-md-block">
-                            <circle class="progress-ring-circle" stroke="#ffc107" stroke-width="4" fill="transparent" r="26" cx="30" cy="30"/>
-                        </svg>
+<div class="row mb-4 mb-md-5 g-4">
+    <div class="col-12 col-sm-6 col-lg-4">
+        <div class="card stat-card-modern card-hover-effect animate-slide-left position-relative overflow-hidden page-break-inside-avoid">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="stat-icon-container text-warning">
+                        <i class="fas fa-clock stat-icon"></i>
+                    </div>
+                    <div class="progress-circle-modern" data-percentage="{{ (complaints|selectattr('status', 'equalto', 'Pending')|list|length / complaints|length * 100)|round }}">
+                        <div class="progress-circle-inner">
+                            <span class="progress-percentage">{{ (complaints|selectattr('status', 'equalto', 'Pending')|list|length / complaints|length * 100)|round }}%</span>
+                        </div>
                     </div>
                 </div>
-                <h2 class="mb-1 h3 h2-md">{{ complaints|selectattr('status', 'equalto', 'Pending')|list|length }}</h2>
-                <h6 class="mb-0 h6 h6-md">Pending</h6>
-                <small class="text-muted">Awaiting review</small>
+                <div class="stat-content">
+                    <h2 class="stat-number text-warning mb-1">{{ complaints|selectattr('status', 'equalto', 'Pending')|list|length }}</h2>
+                    <h6 class="stat-label mb-2">Pending Complaints</h6>
+                    <p class="stat-description text-muted small mb-0">Awaiting administrative review</p>
+                </div>
+                <div class="stat-trend">
+                    <i class="fas fa-arrow-up text-warning"></i>
+                    <span class="small text-muted">Active</span>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-12 col-sm-6 col-lg-4 mb-3">
-        <div class="stat-card card-hover-effect animate-slide-top">
-            <div class="text-info">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <i class="fas fa-cog fa-2x fa-md-3x"></i>
-                    <div class="progress-circle" data-percentage="{{ (complaints|selectattr('status', 'equalto', 'In Progress')|list|length / complaints|length * 100)|round }}">
-                        <svg class="progress-ring" width="50" height="50" class="d-md-none">
-                            <circle class="progress-ring-circle" stroke="#0dcaf0" stroke-width="3" fill="transparent" r="22" cx="25" cy="25"/>
-                        </svg>
-                        <svg class="progress-ring" width="60" height="60" class="d-none d-md-block">
-                            <circle class="progress-ring-circle" stroke="#0dcaf0" stroke-width="4" fill="transparent" r="26" cx="30" cy="30"/>
-                        </svg>
+    
+    <div class="col-12 col-sm-6 col-lg-4">
+        <div class="card stat-card-modern card-hover-effect animate-slide-top position-relative overflow-hidden page-break-inside-avoid">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="stat-icon-container text-info">
+                        <i class="fas fa-cog stat-icon"></i>
+                    </div>
+                    <div class="progress-circle-modern" data-percentage="{{ (complaints|selectattr('status', 'equalto', 'In Progress')|list|length / complaints|length * 100)|round }}">
+                        <div class="progress-circle-inner">
+                            <span class="progress-percentage">{{ (complaints|selectattr('status', 'equalto', 'In Progress')|list|length / complaints|length * 100)|round }}%</span>
+                        </div>
                     </div>
                 </div>
-                <h2 class="mb-1 h3 h2-md">{{ complaints|selectattr('status', 'equalto', 'In Progress')|list|length }}</h2>
-                <h6 class="mb-0 h6 h6-md">In Progress</h6>
-                <small class="text-muted">Being addressed</small>
+                <div class="stat-content">
+                    <h2 class="stat-number text-info mb-1">{{ complaints|selectattr('status', 'equalto', 'In Progress')|list|length }}</h2>
+                    <h6 class="stat-label mb-2">In Progress</h6>
+                    <p class="stat-description text-muted small mb-0">Currently being addressed</p>
+                </div>
+                <div class="stat-trend">
+                    <i class="fas fa-arrow-right text-info"></i>
+                    <span class="small text-muted">Processing</span>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-12 col-sm-6 col-lg-4 mb-3">
-        <div class="stat-card card-hover-effect animate-slide-right">
-            <div class="text-success">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <i class="fas fa-check-circle fa-2x fa-md-3x"></i>
-                    <div class="progress-circle" data-percentage="{{ (complaints|selectattr('status', 'equalto', 'Resolved')|list|length / complaints|length * 100)|round }}">
-                        <svg class="progress-ring" width="50" height="50" class="d-md-none">
-                            <circle class="progress-ring-circle" stroke="#198754" stroke-width="3" fill="transparent" r="22" cx="25" cy="25"/>
-                        </svg>
-                        <svg class="progress-ring" width="60" height="60" class="d-none d-md-block">
-                            <circle class="progress-ring-circle" stroke="#198754" stroke-width="4" fill="transparent" r="26" cx="30" cy="30"/>
-                        </svg>
+    
+    <div class="col-12 col-sm-6 col-lg-4">
+        <div class="card stat-card-modern card-hover-effect animate-slide-right position-relative overflow-hidden page-break-inside-avoid">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="stat-icon-container text-success">
+                        <i class="fas fa-check-circle stat-icon"></i>
+                    </div>
+                    <div class="progress-circle-modern" data-percentage="{{ (complaints|selectattr('status', 'equalto', 'Resolved')|list|length / complaints|length * 100)|round }}">
+                        <div class="progress-circle-inner">
+                            <span class="progress-percentage">{{ (complaints|selectattr('status', 'equalto', 'Resolved')|list|length / complaints|length * 100)|round }}%</span>
+                        </div>
                     </div>
                 </div>
-                <h2 class="mb-1 h3 h2-md">{{ complaints|selectattr('status', 'equalto', 'Resolved')|list|length }}</h2>
-                <h6 class="mb-0 h6 h6-md">Resolved</h6>
-                <small class="text-muted">Successfully closed</small>
+                <div class="stat-content">
+                    <h2 class="stat-number text-success mb-1">{{ complaints|selectattr('status', 'equalto', 'Resolved')|list|length }}</h2>
+                    <h6 class="stat-label mb-2">Resolved</h6>
+                    <p class="stat-description text-muted small mb-0">Successfully completed</p>
+                </div>
+                <div class="stat-trend">
+                    <i class="fas fa-check text-success"></i>
+                    <span class="small text-muted">Completed</span>
+                </div>
             </div>
         </div>
     </div>
 </div>
 {% endif %}
 
-<!-- Complaints Section -->
+<!-- Modern Quick Actions Panel -->
 {% if complaints %}
-    <div class="row">
-        <div class="col-12 mb-3 mb-md-4">
-            <h3 class="gradient-text h4 h3-md">
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card glass position-relative overflow-hidden">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="gradient-text mb-0">
+                        <i class="fas fa-bolt me-2"></i>Quick Actions
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-info" onclick="showAISuggestions()" id="aiSuggestionsBtn">
+                            <i class="fas fa-robot me-1"></i>AI Suggestions
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary btn-view-toggle" onclick="toggleViewMode()" id="viewToggleBtn">
+                            <i class="fas fa-th me-1"></i>Grid View
+                        </button>
+                        <div class="dropdown export-dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-download me-1"></i>Export
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="exportDropdown">
+                                <li><a class="dropdown-item" href="#" onclick="exportData('csv')">
+                                    <i class="fas fa-file-csv me-2"></i>Export as CSV
+                                </a></li>
+                                <li><a class="dropdown-item" href="#" onclick="exportData('json')">
+                                    <i class="fas fa-file-code me-2"></i>Export as JSON
+                                </a></li>
+                                <li><a class="dropdown-item" href="#" onclick="exportData('txt')">
+                                    <i class="fas fa-file-alt me-2"></i>Export as Text
+                                </a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="#" onclick="printDashboard()">
+                                    <i class="fas fa-print me-2"></i>Print Dashboard
+                                </a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row g-3">
+                    <div class="col-6 col-md-3">
+                        <a href="{{ url_for('submit_complaint') }}" class="btn btn-primary w-100 py-3 rounded-3 shadow-sm">
+                            <i class="fas fa-plus fa-lg me-2"></i>
+                            <div class="d-block">
+                                <div class="fw-bold">New Complaint</div>
+                                <small class="opacity-75">Submit a new issue</small>
+                            </div>
+                        </a>
+                    </div>
+                    
+                    <div class="col-6 col-md-3">
+                        <a href="{{ url_for('change_password') }}" class="btn btn-outline-warning w-100 py-3 rounded-3">
+                            <i class="fas fa-key fa-lg me-2"></i>
+                            <div class="d-block">
+                                <div class="fw-bold">Security</div>
+                                <small class="opacity-75">Change password</small>
+                            </div>
+                        </a>
+                    </div>
+                    
+                    <div class="col-6 col-md-3">
+                        <button class="btn btn-outline-info w-100 py-3 rounded-3" onclick="refreshDashboard()">
+                            <i class="fas fa-sync-alt fa-lg me-2"></i>
+                            <div class="d-block">
+                                <div class="fw-bold">Refresh</div>
+                                <small class="opacity-75">Update data</small>
+                            </div>
+                        </button>
+                    </div>
+                    
+                    <div class="col-6 col-md-3">
+                        <button class="btn btn-outline-secondary w-100 py-3 rounded-3" onclick="printDashboard()">
+                            <i class="fas fa-print fa-lg me-2"></i>
+                            <div class="d-block">
+                                <div class="fw-bold">Print</div>
+                                <small class="opacity-75">Print dashboard</small>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modern Complaints Section -->
+{% if complaints %}
+    <div class="row mb-4">
+        <div class="col-12 mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3 class="gradient-text h4 h3-md mb-0">
                 <i class="fas fa-clipboard-list me-2"></i>Your Complaints
             </h3>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary btn-sm" onclick="filterComplaints('all')">
+                        <i class="fas fa-list me-1"></i>All
+                    </button>
+                    <button class="btn btn-outline-warning btn-sm" onclick="filterComplaints('pending')">
+                        <i class="fas fa-clock me-1"></i>Pending
+                    </button>
+                    <button class="btn btn-outline-info btn-sm" onclick="filterComplaints('progress')">
+                        <i class="fas fa-cog me-1"></i>In Progress
+                    </button>
+                    <button class="btn btn-outline-success btn-sm" onclick="filterComplaints('resolved')">
+                        <i class="fas fa-check me-1"></i>Resolved
+                    </button>
+                </div>
+            </div>
         </div>
+        
+        <div class="col-12">
+            <div class="row g-4 grid-view" id="complaintsContainer">
         {% for complaint in complaints %}
-            <div class="col-12 col-md-6 col-lg-4 mb-3 mb-md-4">
-                <div class="card h-100 hover-lift slide-up">
-                    <div class="card-header d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
-                        <h6 class="mb-0 fw-bold small">{{ complaint.title }}</h6>
-                        <div class="d-flex flex-wrap gap-1">
-                            <span class="badge bg-secondary small">{{ complaint.category }}</span>
-                            <span class="badge 
-                                {% if complaint.priority == 'Low' %}bg-success
-                                {% elif complaint.priority == 'Medium' %}bg-warning
-                                {% elif complaint.priority == 'High' %}bg-danger
-                                {% elif complaint.priority == 'Urgent' %}bg-dark
-                                {% endif %} small">
+                    <div class="col-12 col-md-6 col-lg-4 complaint-card" data-status="{{ complaint.status.lower().replace(' ', '') }}">
+                        <div class="card complaint-card-modern h-100 hover-lift slide-up position-relative overflow-hidden page-break-inside-avoid">
+                            <!-- Card Header with Status Indicator -->
+                            <div class="card-header-modern position-relative">
+                                <div class="status-indicator 
+                                    {% if complaint.status == 'Pending' %}status-pending
+                                    {% elif complaint.status == 'In Progress' %}status-progress
+                                    {% elif complaint.status == 'Resolved' %}status-resolved
+                                    {% endif %}"></div>
+                                
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <h6 class="complaint-title fw-bold mb-0">{{ complaint.title }}</h6>
+                                    <div class="complaint-actions">
+                                        <button class="btn btn-sm btn-outline-secondary" data-complaint-id="{{ complaint.id }}" onclick="toggleComplaintDetails(this.dataset.complaintId)">
+                                            <i class="fas fa-expand-alt"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex flex-wrap gap-2 mb-3">
+                                    <span class="badge bg-secondary rounded-pill">
+                                        <i class="fas fa-tag me-1"></i>{{ complaint.category }}
+                                    </span>
+                                    <span class="badge priority-badge 
+                                        {% if complaint.priority == 'Low' %}priority-low
+                                        {% elif complaint.priority == 'Medium' %}priority-medium
+                                        {% elif complaint.priority == 'High' %}priority-high
+                                        {% elif complaint.priority == 'Urgent' %}priority-urgent
+                                        {% endif %} rounded-pill">
+                                        <i class="fas fa-{{ 'arrow-down' if complaint.priority == 'Low' else 'minus' if complaint.priority == 'Medium' else 'arrow-up' if complaint.priority == 'High' else 'exclamation' }} me-1"></i>
                                 {{ complaint.priority }}
                             </span>
-                            <span class="badge 
-                                {% if complaint.status == 'Pending' %}bg-warning
-                                {% elif complaint.status == 'In Progress' %}bg-info
-                                {% elif complaint.status == 'Resolved' %}bg-success
-                                {% endif %} small">
+                                    <span class="badge status-badge 
+                                        {% if complaint.status == 'Pending' %}status-badge-pending
+                                        {% elif complaint.status == 'In Progress' %}status-badge-progress
+                                        {% elif complaint.status == 'Resolved' %}status-badge-resolved
+                                        {% endif %} rounded-pill">
                                 <i class="fas fa-{{ 'clock' if complaint.status == 'Pending' else 'cog' if complaint.status == 'In Progress' else 'check' }} me-1"></i>
                                 {{ complaint.status }}
                             </span>
                         </div>
                     </div>
-                    <div class="card-body d-flex flex-column">
-                        <p class="card-text flex-grow-1 small">
-                            {{ complaint.description[:100] }}{% if complaint.description|length > 100 %}...{% endif %}
-                        </p>
-                        <div class="mt-auto">
-                            <hr class="my-3">
-                            <small class="text-muted d-flex align-items-center">
+                            
+                            <!-- Card Body -->
+                            <div class="card-body p-4">
+                                <p class="complaint-description text-muted mb-3">
+                                    {{ complaint.description[:120] }}{% if complaint.description|length > 120 %}...{% endif %}
+                                </p>
+                                
+                                <div class="complaint-meta">
+                                    <div class="d-flex align-items-center text-muted small mb-2">
                                 <i class="fas fa-calendar-alt me-2"></i>
                                 <span>Submitted: {{ complaint.created_at }}</span>
-                            </small>
-                            {% if complaint.admin_reply %}
-                            <div class="alert alert-info mt-2 py-2 px-3 small">
-                                <i class="fas fa-reply me-2"></i>
-                                <strong>Admin reply:</strong> {{ complaint.admin_reply }}
+                                    </div>
+                                    
+                                    {% if complaint.admin_reply %}
+                                    <div class="admin-reply-container mt-3">
+                                        <div class="alert alert-info p-3 rounded-3">
+                                            <div class="d-flex align-items-start">
+                                                <i class="fas fa-reply text-info me-2 mt-1"></i>
+                                                <div>
+                                                    <strong class="small">Admin Response:</strong>
+                                                    <p class="small mb-0 mt-1">{{ complaint.admin_reply }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
                             </div>
-                            {% endif %}
+                            
+                            <!-- Card Footer -->
+                            <div class="card-footer bg-transparent border-0 p-4 pt-0">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        <i class="fas fa-hashtag me-1"></i>ID: {{ complaint.id }}
+                            </small>
+                                    <div class="complaint-actions">
+                                        <button class="btn btn-sm btn-outline-primary" data-complaint-id="{{ complaint.id }}" onclick="viewComplaintDetails(this.dataset.complaintId)">
+                                            <i class="fas fa-eye me-1"></i>View Details
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
+                {% endfor %}
             </div>
-        {% endfor %}
+        </div>
     </div>
 {% else %}
     <div class="row justify-content-center">
@@ -162,29 +382,758 @@
     </div>
 {% endif %}
 
-<!-- Quick Actions -->
-{% if complaints %}
-<div class="row mt-5">
-    <div class="col-12">
-        <div class="card glass">
-            <div class="card-body text-center">
-                <h5 class="gradient-text mb-3">
-                    <i class="fas fa-bolt me-2"></i>Quick Actions
-                </h5>
-                <div class="d-flex justify-content-center gap-3 flex-wrap">
-                    <a href="{{ url_for('submit_complaint') }}" class="btn btn-outline-primary">
-                        <i class="fas fa-plus me-2"></i>New Complaint
-                    </a>
-                    <button class="btn btn-outline-info" onclick="window.location.reload()">
-                        <i class="fas fa-sync-alt me-2"></i>Refresh
-                    </button>
-                    <button class="btn btn-outline-secondary" onclick="window.print()">
-                        <i class="fas fa-print me-2"></i>Print Dashboard
-                    </button>
+
+<!-- JavaScript for Enhanced Dashboard Functionality -->
+<script>
+// Dashboard refresh function
+function refreshDashboard() {
+    const refreshBtn = event.target.closest('button');
+    const originalContent = refreshBtn.innerHTML;
+    
+    refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Refreshing...';
+    refreshBtn.disabled = true;
+    
+    setTimeout(() => {
+        window.location.reload();
+    }, 1000);
+}
+
+// Print dashboard function
+function printDashboard() {
+    const currentDate = new Date().toLocaleString();
+    
+    // Set the print date in header
+    const printDateElement = document.getElementById('printDate');
+    if (printDateElement) {
+        printDateElement.textContent = currentDate;
+    }
+    
+    // Set the print date in footer
+    const printFooterDateElement = document.getElementById('printFooterDate');
+    if (printFooterDateElement) {
+        printFooterDateElement.textContent = currentDate;
+    }
+    
+    // Add print-specific classes to elements
+    const cards = document.querySelectorAll('.card');
+    cards.forEach(card => {
+        card.classList.add('page-break-inside-avoid');
+    });
+    
+    // Hide non-essential elements for print
+    const elementsToHide = document.querySelectorAll('.btn, .navbar, .floating-shape, .particles');
+    elementsToHide.forEach(element => {
+        element.classList.add('print-hide');
+    });
+    
+    // Add print-specific styling
+    document.body.classList.add('printing');
+    
+    // Trigger print dialog
+    window.print();
+    
+    // Clean up after printing
+    setTimeout(() => {
+        elementsToHide.forEach(element => {
+            element.classList.remove('print-hide');
+        });
+        document.body.classList.remove('printing');
+    }, 1000);
+}
+
+// Filter complaints function
+function filterComplaints(status) {
+    const cards = document.querySelectorAll('.complaint-card');
+    const buttons = document.querySelectorAll('[onclick^="filterComplaints"]');
+    
+    // Update button states
+    buttons.forEach(btn => {
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-outline-primary', 'btn-outline-warning', 'btn-outline-info', 'btn-outline-success');
+    });
+    
+    event.target.classList.remove('btn-outline-primary', 'btn-outline-warning', 'btn-outline-info', 'btn-outline-success');
+    event.target.classList.add('btn-primary');
+    
+    // Filter cards
+    cards.forEach(card => {
+        const cardStatus = card.getAttribute('data-status');
+        
+        if (status === 'all' || cardStatus === status) {
+            card.style.display = 'block';
+            card.classList.add('animate-slide-up');
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+// Toggle complaint details (modal view)
+function toggleComplaintDetails(complaintId) {
+    // Open modal with complaint details
+    const modal = document.getElementById('complaintModal');
+    const modalTitle = document.getElementById('complaintModalTitle');
+    const modalBody = document.getElementById('complaintModalBody');
+    
+    // Show loading state
+    modalTitle.textContent = 'Loading...';
+    modalBody.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"></div></div>';
+    
+    // Show modal
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+    
+    // Fetch complaint details (simplified version for modal)
+    // For now, just show a message that full details are available via View Details button
+    modalTitle.textContent = 'Complaint Details';
+    modalBody.innerHTML = `
+        <div class="text-center">
+            <p>For complete complaint details, please use the "View Details" button.</p>
+            <button class="btn btn-primary" onclick="viewComplaintDetails(${complaintId})">
+                <i class="fas fa-eye me-2"></i>View Full Details
+            </button>
+        </div>
+    `;
+}
+
+// View complaint details
+function viewComplaintDetails(complaintId) {
+    // Navigate to the complaint details page
+    window.location.href = `/complaint/${complaintId}`;
+}
+
+// Toggle view mode
+function toggleViewMode() {
+    const container = document.getElementById('complaintsContainer');
+    const button = document.getElementById('viewToggleBtn');
+    
+    if (container.classList.contains('list-view')) {
+        // Switch to grid view
+        container.classList.remove('list-view');
+        container.classList.add('grid-view');
+        button.innerHTML = '<i class="fas fa-th me-1"></i>Grid View';
+        button.classList.remove('btn-outline-secondary');
+        button.classList.add('btn-outline-primary');
+    } else {
+        // Switch to list view
+        container.classList.remove('grid-view');
+        container.classList.add('list-view');
+        button.innerHTML = '<i class="fas fa-list me-1"></i>List View';
+        button.classList.remove('btn-outline-primary');
+        button.classList.add('btn-outline-secondary');
+    }
+}
+
+// Export data function
+function exportData(format) {
+    const complaints = getComplaintData();
+    const currentDate = new Date().toISOString().split('T')[0];
+    
+    switch(format) {
+        case 'csv':
+            exportToCSV(complaints, currentDate);
+            break;
+        case 'json':
+            exportToJSON(complaints, currentDate);
+            break;
+        case 'txt':
+            exportToTXT(complaints, currentDate);
+            break;
+        default:
+            console.log('Unknown export format:', format);
+    }
+}
+
+// Get complaint data from the page
+function getComplaintData() {
+    const complaints = [];
+    const complaintCards = document.querySelectorAll('.complaint-card-modern');
+    
+    complaintCards.forEach(card => {
+        const title = card.querySelector('.complaint-title')?.textContent?.trim() || 'N/A';
+        const description = card.querySelector('.complaint-description')?.textContent?.trim() || 'N/A';
+        const status = card.querySelector('.status-badge')?.textContent?.trim() || 'N/A';
+        const priority = card.querySelector('.priority-badge')?.textContent?.trim() || 'N/A';
+        const category = card.querySelector('.complaint-meta small')?.textContent?.replace('Category:', '').trim() || 'N/A';
+        const created = card.querySelector('.complaint-meta small:last-child')?.textContent?.replace('Submitted:', '').trim() || 'N/A';
+        
+        complaints.push({
+            title,
+            description,
+            status,
+            priority,
+            category,
+            created
+        });
+    });
+    
+    return complaints;
+}
+
+// Export to CSV
+function exportToCSV(complaints, date) {
+    if (complaints.length === 0) {
+        alert('No complaints to export!');
+        return;
+    }
+    
+    const headers = ['Title', 'Description', 'Status', 'Priority', 'Category', 'Created Date'];
+    const csvContent = [
+        headers.join(','),
+        ...complaints.map(complaint => [
+            `"${complaint.title.replace(/"/g, '""')}"`,
+            `"${complaint.description.replace(/"/g, '""')}"`,
+            `"${complaint.status}"`,
+            `"${complaint.priority}"`,
+            `"${complaint.category}"`,
+            `"${complaint.created}"`
+        ].join(','))
+    ].join('\n');
+    
+    downloadFile(csvContent, `resolveit-complaints-${date}.csv`, 'text/csv');
+}
+
+// Export to JSON
+function exportToJSON(complaints, date) {
+    if (complaints.length === 0) {
+        alert('No complaints to export!');
+        return;
+    }
+    
+    const exportData = {
+        exportDate: new Date().toISOString(),
+        totalComplaints: complaints.length,
+        complaints: complaints
+    };
+    
+    const jsonContent = JSON.stringify(exportData, null, 2);
+    downloadFile(jsonContent, `resolveit-complaints-${date}.json`, 'application/json');
+}
+
+// Export to TXT
+function exportToTXT(complaints, date) {
+    if (complaints.length === 0) {
+        alert('No complaints to export!');
+        return;
+    }
+    
+    let txtContent = `ResolveIt - Complaint Export Report\n`;
+    txtContent += `Generated on: ${new Date().toLocaleString()}\n`;
+    txtContent += `Total Complaints: ${complaints.length}\n`;
+    txtContent += `${'='.repeat(50)}\n\n`;
+    
+    complaints.forEach((complaint, index) => {
+        txtContent += `${index + 1}. ${complaint.title}\n`;
+        txtContent += `   Status: ${complaint.status}\n`;
+        txtContent += `   Priority: ${complaint.priority}\n`;
+        txtContent += `   Category: ${complaint.category}\n`;
+        txtContent += `   Created: ${complaint.created}\n`;
+        txtContent += `   Description: ${complaint.description}\n`;
+        txtContent += `${'-'.repeat(40)}\n\n`;
+    });
+    
+    downloadFile(txtContent, `resolveit-complaints-${date}.txt`, 'text/plain');
+}
+
+// Download file helper function
+function downloadFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+    // Show success message
+    showExportSuccess(filename);
+}
+
+// Show export success message
+function showExportSuccess(filename) {
+    // Create a temporary success message
+    const successMsg = document.createElement('div');
+    successMsg.className = 'alert alert-success alert-dismissible fade show position-fixed';
+    successMsg.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    successMsg.innerHTML = `
+        <i class="fas fa-check-circle me-2"></i>
+        <strong>Export Successful!</strong><br>
+        File "${filename}" has been downloaded.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(successMsg);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (successMsg.parentNode) {
+            successMsg.parentNode.removeChild(successMsg);
+        }
+    }, 5000);
+}
+
+// AI Suggestions Functions
+function showAISuggestions() {
+    const suggestionsSection = document.getElementById('aiSuggestionsSection');
+    const suggestionsBtn = document.getElementById('aiSuggestionsBtn');
+    
+    if (suggestionsSection.style.display === 'none') {
+        suggestionsSection.style.display = 'block';
+        suggestionsBtn.innerHTML = '<i class="fas fa-robot me-1"></i>Hide AI';
+        suggestionsBtn.classList.remove('btn-outline-info');
+        suggestionsBtn.classList.add('btn-info');
+        
+        // Generate AI suggestions
+        generateAISuggestions();
+    } else {
+        suggestionsSection.style.display = 'none';
+        suggestionsBtn.innerHTML = '<i class="fas fa-robot me-1"></i>AI Suggestions';
+        suggestionsBtn.classList.remove('btn-info');
+        suggestionsBtn.classList.add('btn-outline-info');
+    }
+}
+
+function toggleAISuggestions() {
+    showAISuggestions();
+}
+
+function generateAISuggestions() {
+    const complaints = getComplaintData();
+    const suggestionsContent = document.getElementById('aiSuggestionsContent');
+    
+    if (complaints.length === 0) {
+        suggestionsContent.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+                <h6 class="text-muted">No complaints to analyze</h6>
+                <p class="text-muted small">Submit some complaints to get AI-powered suggestions!</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Simulate AI processing delay
+    setTimeout(() => {
+        const suggestions = analyzeComplaints(complaints);
+        displaySuggestions(suggestions);
+    }, 2000);
+}
+
+function analyzeComplaints(complaints) {
+    const suggestions = [];
+    
+    // Analyze complaint patterns
+    const statusCounts = complaints.reduce((acc, complaint) => {
+        acc[complaint.status] = (acc[complaint.status] || 0) + 1;
+        return acc;
+    }, {});
+    
+    const priorityCounts = complaints.reduce((acc, complaint) => {
+        acc[complaint.priority] = (acc[complaint.priority] || 0) + 1;
+        return acc;
+    }, {});
+    
+    const categoryCounts = complaints.reduce((acc, complaint) => {
+        acc[complaint.category] = (acc[complaint.category] || 0) + 1;
+        return acc;
+    }, {});
+    
+    // Generate suggestions based on patterns
+    if (statusCounts['Pending'] > 2) {
+        suggestions.push({
+            type: 'warning',
+            icon: 'fas fa-clock',
+            title: 'High Pending Complaints',
+            description: `You have ${statusCounts['Pending']} pending complaints. Consider prioritizing urgent ones.`,
+            action: 'Review pending complaints',
+            confidence: 85
+        });
+    }
+    
+    if (priorityCounts['High'] > 1) {
+        suggestions.push({
+            type: 'danger',
+            icon: 'fas fa-exclamation-triangle',
+            title: 'Multiple High Priority Issues',
+            description: `${priorityCounts['High']} high priority complaints need immediate attention.`,
+            action: 'Address high priority complaints first',
+            confidence: 90
+        });
+    }
+    
+    if (categoryCounts['Technical'] > 3) {
+        suggestions.push({
+            type: 'info',
+            icon: 'fas fa-cogs',
+            title: 'Technical Issues Pattern',
+            description: 'Multiple technical complaints detected. Consider creating a knowledge base.',
+            action: 'Create technical documentation',
+            confidence: 75
+        });
+    }
+    
+    // Check for similar complaints
+    const similarComplaints = findSimilarComplaints(complaints);
+    if (similarComplaints.length > 0) {
+        suggestions.push({
+            type: 'success',
+            icon: 'fas fa-link',
+            title: 'Similar Complaints Found',
+            description: `Found ${similarComplaints.length} similar complaints that might be related.`,
+            action: 'Group similar complaints together',
+            confidence: 80
+        });
+    }
+    
+    // General suggestions
+    if (complaints.length > 5) {
+        suggestions.push({
+            type: 'primary',
+            icon: 'fas fa-chart-line',
+            title: 'Complaint Volume Analysis',
+            description: 'You have a good number of complaints. Consider implementing a feedback system.',
+            action: 'Set up automated responses',
+            confidence: 70
+        });
+    }
+    
+    return suggestions;
+}
+
+function findSimilarComplaints(complaints) {
+    const similar = [];
+    const keywords = ['network', 'internet', 'connection', 'slow', 'down', 'error', 'bug', 'issue'];
+    
+    complaints.forEach((complaint, index) => {
+        const title = complaint.title.toLowerCase();
+        const description = complaint.description.toLowerCase();
+        
+        const matches = keywords.filter(keyword => 
+            title.includes(keyword) || description.includes(keyword)
+        );
+        
+        if (matches.length > 0) {
+            similar.push({
+                complaint,
+                matches,
+                index
+            });
+        }
+    });
+    
+    return similar;
+}
+
+function displaySuggestions(suggestions) {
+    const suggestionsContent = document.getElementById('aiSuggestionsContent');
+    
+    if (suggestions.length === 0) {
+        suggestionsContent.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                <h6 class="text-success">All Good!</h6>
+                <p class="text-muted small">No specific suggestions at this time. Your complaints are well managed!</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<div class="row g-3">';
+    
+    suggestions.forEach((suggestion, index) => {
+        const alertClass = `alert-${suggestion.type}`;
+        const confidenceColor = suggestion.confidence >= 80 ? 'success' : suggestion.confidence >= 60 ? 'warning' : 'secondary';
+        
+        html += `
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card suggestion-card h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-start mb-3">
+                            <div class="suggestion-icon me-3">
+                                <i class="${suggestion.icon} fa-2x text-${suggestion.type}"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="card-title mb-1">${suggestion.title}</h6>
+                                <span class="badge bg-${confidenceColor} small">${suggestion.confidence}% confidence</span>
+                            </div>
+                        </div>
+                        <p class="card-text text-muted small mb-3">${suggestion.description}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">${suggestion.action}</small>
+                            <button class="btn btn-sm btn-outline-${suggestion.type}" onclick="applySuggestion('${suggestion.type}', ${index})">
+                                <i class="fas fa-magic me-1"></i>Apply
+                            </button>
+                        </div>
+                    </div>
                 </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    suggestionsContent.innerHTML = html;
+}
+
+function applySuggestion(type, index) {
+    // Show a success message
+    const successMsg = document.createElement('div');
+    successMsg.className = 'alert alert-success alert-dismissible fade show position-fixed';
+    successMsg.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    successMsg.innerHTML = `
+        <i class="fas fa-magic me-2"></i>
+        <strong>Suggestion Applied!</strong><br>
+        AI suggestion has been implemented.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(successMsg);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        if (successMsg.parentNode) {
+            successMsg.parentNode.removeChild(successMsg);
+        }
+    }, 3000);
+}
+
+// Chatbot Functions
+function toggleChatbot() {
+    const chatbotContainer = document.getElementById('chatbotContainer');
+    const chatbotToggle = document.getElementById('chatbotToggle');
+    const chatbotBadge = document.getElementById('chatbotBadge');
+    
+    if (chatbotContainer.style.display === 'none' || chatbotContainer.style.display === '') {
+        chatbotContainer.style.display = 'block';
+        chatbotToggle.classList.add('active');
+        chatbotBadge.style.display = 'none';
+        
+        // Focus on input when opened
+        setTimeout(() => {
+            document.getElementById('chatbotInput').focus();
+        }, 300);
+    } else {
+        chatbotContainer.style.display = 'none';
+        chatbotToggle.classList.remove('active');
+    }
+}
+
+function sendQuickMessage(message) {
+    document.getElementById('chatbotInput').value = message;
+    sendChatbotMessage();
+}
+
+function handleChatbotKeypress(event) {
+    if (event.key === 'Enter') {
+        sendChatbotMessage();
+    }
+}
+
+function sendChatbotMessage() {
+    const input = document.getElementById('chatbotInput');
+    const message = input.value.trim();
+    
+    if (message === '') return;
+    
+    // Add user message
+    addChatbotMessage(message, 'user');
+    input.value = '';
+    
+    // Simulate bot response
+    setTimeout(() => {
+        const botResponse = getBotResponse(message);
+        addChatbotMessage(botResponse, 'bot');
+    }, 1000);
+}
+
+function addChatbotMessage(message, sender) {
+    const messagesContainer = document.getElementById('chatbotMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chatbot-message ${sender}-message`;
+    
+    const currentTime = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    
+    if (sender === 'user') {
+        messageDiv.innerHTML = `
+            <div class="message-content">
+                <p>${message}</p>
+                <small class="message-time">${currentTime}</small>
+            </div>
+            <div class="message-avatar">
+                <i class="fas fa-user"></i>
+            </div>
+        `;
+    } else {
+        messageDiv.innerHTML = `
+            <div class="message-avatar">
+                <i class="fas fa-robot"></i>
+            </div>
+            <div class="message-content">
+                <p>${message}</p>
+                <small class="message-time">${currentTime}</small>
+            </div>
+        `;
+    }
+    
+    messagesContainer.appendChild(messageDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function getBotResponse(userMessage) {
+    const message = userMessage.toLowerCase();
+    
+    // Common responses based on keywords
+    if (message.includes('submit') || message.includes('complaint')) {
+        return "To submit a complaint, click the 'New Complaint' button in the Quick Actions section above. You'll need to provide a title, description, category, and priority level.";
+    }
+    
+    if (message.includes('status') || message.includes('check')) {
+        return "You can check your complaint status by looking at the 'Your Complaints' section below. Each complaint shows its current status: Pending, In Progress, or Resolved.";
+    }
+    
+    if (message.includes('password') || message.includes('security')) {
+        return "To change your password, click the 'Security' button in the Quick Actions section above, or go to your profile settings.";
+    }
+    
+    if (message.includes('help') || message.includes('support')) {
+        return "I'm here to help! You can ask me about submitting complaints, checking status, changing passwords, or any other ResolveIt features. What would you like to know?";
+    }
+    
+    if (message.includes('export') || message.includes('download')) {
+        return "To export your data, use the 'Export' dropdown in the Quick Actions section. You can export as CSV, JSON, or text format.";
+    }
+    
+    if (message.includes('print')) {
+        return "To print your dashboard, click the 'Print' button in the Quick Actions section, or use the Export dropdown and select 'Print Dashboard'.";
+    }
+    
+    if (message.includes('ai') || message.includes('suggestion')) {
+        return "Click the 'AI Suggestions' button in the Quick Actions section to get intelligent recommendations based on your complaint patterns.";
+    }
+    
+    if (message.includes('filter') || message.includes('view')) {
+        return "You can filter your complaints using the filter buttons (All, Pending, In Progress, Resolved) in the 'Your Complaints' section. You can also switch between Grid and List view.";
+    }
+    
+    if (message.includes('admin') || message.includes('administrator')) {
+        return "If you need admin assistance, please contact your system administrator. They can help with account issues, system settings, and advanced complaint management.";
+    }
+    
+    if (message.includes('hello') || message.includes('hi') || message.includes('hey')) {
+        return "Hello! I'm your ResolveIt assistant. I can help you with submitting complaints, checking status, changing passwords, and more. What can I help you with today?";
+    }
+    
+    if (message.includes('thank') || message.includes('thanks')) {
+        return "You're welcome! I'm here whenever you need help with ResolveIt. Feel free to ask me anything!";
+    }
+    
+    // Default response
+    return "I understand you're asking about: '" + userMessage + "'. I can help you with submitting complaints, checking status, changing passwords, exporting data, and more. Could you be more specific about what you need help with?";
+}
+
+// Initialize dashboard animations
+document.addEventListener('DOMContentLoaded', function() {
+    // Animate statistics cards on load
+    const statCards = document.querySelectorAll('.stat-card-modern');
+    statCards.forEach((card, index) => {
+        setTimeout(() => {
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 200);
+    });
+    
+    // Animate complaint cards on load
+    const complaintCards = document.querySelectorAll('.complaint-card-modern');
+    complaintCards.forEach((card, index) => {
+        setTimeout(() => {
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 100);
+    });
+});
+</script>
+
+<!-- Complaint Details Modal -->
+<div class="modal fade" id="complaintModal" tabindex="-1" aria-labelledby="complaintModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="complaintModalTitle">Complaint Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="complaintModalBody">
+                <!-- Content will be loaded dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="viewFullDetailsBtn" style="display: none;">
+                    <i class="fas fa-eye me-2"></i>View Full Details
+                    </button>
             </div>
         </div>
     </div>
 </div>
-{% endif %}
+
+<!-- Print Footer (hidden by default, shown only when printing) -->
+<div class="print-footer">
+    <div>Complaint Management System - Dashboard Report</div>
+    <div>Generated on: <span id="printFooterDate"></span>    </div>
+</div>
+
+<!-- Chatbot Widget -->
+<div class="chatbot-widget" id="chatbotWidget">
+    <div class="chatbot-toggle" id="chatbotToggle" onclick="toggleChatbot()">
+        <i class="fas fa-comments"></i>
+        <span class="chatbot-badge" id="chatbotBadge">1</span>
+    </div>
+    
+    <div class="chatbot-container" id="chatbotContainer">
+        <div class="chatbot-header">
+            <div class="chatbot-avatar">
+                <i class="fas fa-robot"></i>
+            </div>
+            <div class="chatbot-info">
+                <h6 class="chatbot-name">ResolveIt Assistant</h6>
+                <small class="chatbot-status">Online</small>
+            </div>
+            <button class="chatbot-close" onclick="toggleChatbot()">
+                <i class="fas fa-times"></i>
+                    </button>
+        </div>
+        
+        <div class="chatbot-messages" id="chatbotMessages">
+            <div class="chatbot-message bot-message">
+                <div class="message-avatar">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="message-content">
+                    <p>Hello! I'm your ResolveIt assistant. How can I help you today?</p>
+                    <small class="message-time">Just now</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chatbot-input-container">
+            <div class="chatbot-quick-actions">
+                <button class="quick-action-btn" onclick="sendQuickMessage('How do I submit a complaint?')">
+                    Submit Complaint
+                </button>
+                <button class="quick-action-btn" onclick="sendQuickMessage('How do I check my complaint status?')">
+                    Check Status
+                </button>
+                <button class="quick-action-btn" onclick="sendQuickMessage('How do I change my password?')">
+                    Change Password
+                </button>
+            </div>
+            
+            <div class="chatbot-input-group">
+                <input type="text" class="chatbot-input" id="chatbotInput" placeholder="Type your message..." onkeypress="handleChatbotKeypress(event)">
+                <button class="chatbot-send" onclick="sendChatbotMessage()">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

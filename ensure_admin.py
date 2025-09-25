@@ -5,7 +5,7 @@ conn = sqlite3.connect('complaints.db')
 conn.row_factory = sqlite3.Row
 c = conn.cursor()
 
-pwd = generate_password_hash('admin123')
+pwd = generate_password_hash('Admin@123!')
 
 c.execute("SELECT id FROM users WHERE role='admin'")
 row = c.fetchone()

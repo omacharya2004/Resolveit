@@ -28,6 +28,12 @@
                             <span>About</span>
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <button class="btn btn-link nav-link d-flex align-items-center" id="darkModeToggle" onclick="toggleDarkMode()">
+                            <i class="fas fa-moon me-2" id="darkModeIcon"></i>
+                            <span id="darkModeText">Dark Mode</span>
+                        </button>
+                    </li>
                     {% if current_user.is_authenticated %}
                         {% if current_user.role == 'admin' %}
                             <li class="nav-item">
@@ -43,6 +49,13 @@
                                     <i class="fas fa-tachometer-alt me-2"></i>
                                     <span class="d-none d-md-inline">Dashboard</span>
                                     <span class="d-inline d-md-none">Dashboard</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link d-flex align-items-center" href="{{ url_for('profile') }}">
+                                    <i class="fas fa-user me-2"></i>
+                                    <span class="d-none d-md-inline">Profile</span>
+                                    <span class="d-inline d-md-none">Profile</span>
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -125,6 +138,39 @@
     </button>
 
     <script>
+    // Dark Mode Toggle Functionality
+    function toggleDarkMode() {
+        const body = document.body;
+        const darkModeIcon = document.getElementById('darkModeIcon');
+        const darkModeText = document.getElementById('darkModeText');
+        
+        if (body.classList.contains('dark-mode')) {
+            body.classList.remove('dark-mode');
+            darkModeIcon.className = 'fas fa-moon me-2';
+            darkModeText.textContent = 'Dark Mode';
+            localStorage.setItem('darkMode', 'false');
+        } else {
+            body.classList.add('dark-mode');
+            darkModeIcon.className = 'fas fa-sun me-2';
+            darkModeText.textContent = 'Light Mode';
+            localStorage.setItem('darkMode', 'true');
+        }
+    }
+    
+    // Initialize dark mode on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        const darkMode = localStorage.getItem('darkMode');
+        const body = document.body;
+        const darkModeIcon = document.getElementById('darkModeIcon');
+        const darkModeText = document.getElementById('darkModeText');
+        
+        if (darkMode === 'true') {
+            body.classList.add('dark-mode');
+            darkModeIcon.className = 'fas fa-sun me-2';
+            darkModeText.textContent = 'Light Mode';
+        }
+    });
+
     // Scroll to top function
     function scrollToTop() {
         window.scrollTo({

@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+
+{% block title %}Complaint Details - {{ complaint.title }}{% endblock %}
+
+{% block content %}
+<!-- Header Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="gradient-text mb-0">
+                <i class="fas fa-file-alt me-2"></i>Complaint Details
+            </h2>
+            <div class="d-flex gap-2">
+                <a href="{{ url_for('user_dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                </a>
+                {% if current_user.role == 'admin' %}
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-tachometer-alt me-2"></i>Admin Dashboard
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Complaint Information Card -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card complaint-details-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>Complaint Information
+                </h5>
+                <div class="d-flex gap-2">
+                    <span class="badge 
+                        {% if complaint.status == 'Pending' %}bg-warning
+                        {% elif complaint.status == 'In Progress' %}bg-info
+                        {% elif complaint.status == 'Resolved' %}bg-success
+                        {% endif %} rounded-pill">
+                        <i class="fas fa-{{ 'clock' if complaint.status == 'Pending' else 'cog' if complaint.status == 'In Progress' else 'check' }} me-1"></i>
+                        {{ complaint.status }}
+                    </span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-12 col-md-8">
+                        <h4 class="complaint-title mb-3">{{ complaint.title }}</h4>
+                        <div class="complaint-meta mb-4">
+                            <div class="row g-3">
+                                <div class="col-6 col-md-3">
+                                    <div class="meta-item">
+                                        <strong class="text-muted small">Complaint ID:</strong>
+                                        <div class="fw-bold">#{{ complaint.id }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="meta-item">
+                                        <strong class="text-muted small">Category:</strong>
+                                        <div class="fw-bold">{{ complaint.category }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="meta-item">
+                                        <strong class="text-muted small">Priority:</strong>
+                                        <div class="fw-bold">
+                                            <span class="badge priority-badge 
+                                                {% if complaint.priority == 'Low' %}priority-low
+                                                {% elif complaint.priority == 'Medium' %}priority-medium
+                                                {% elif complaint.priority == 'High' %}priority-high
+                                                {% elif complaint.priority == 'Urgent' %}priority-urgent
+                                                {% endif %} rounded-pill">
+                                                <i class="fas fa-{{ 'arrow-down' if complaint.priority == 'Low' else 'minus' if complaint.priority == 'Medium' else 'arrow-up' if complaint.priority == 'High' else 'exclamation' }} me-1"></i>
+                                                {{ complaint.priority }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="meta-item">
+                                        <strong class="text-muted small">Submitted:</strong>
+                                        <div class="fw-bold">{{ complaint.created_at }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="complaint-description">
+                            <h6 class="text-muted mb-2">Description:</h6>
+                            <div class="description-content p-3 bg-light rounded">
+                                {{ complaint.description|replace('\n', '<br>')|safe }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-12 col-md-4">
+                        <div class="complaint-stats">
+                            <h6 class="text-muted mb-3">Complaint Statistics</h6>
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <div class="stat-value">{{ complaint.id }}</div>
+                                    <div class="stat-label">Complaint ID</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value">
+                                        {% set days_old = (complaint.created_at|string|length) %}
+                                        {{ days_old }} days
+                                    </div>
+                                    <div class="stat-label">Age</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value">{{ complaint.category }}</div>
+                                    <div class="stat-label">Category</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value">{{ complaint.priority }}</div>
+                                    <div class="stat-label">Priority</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Admin Reply Section -->
+{% if complaint.admin_reply %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card admin-reply-card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-reply me-2"></i>Admin Response
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="admin-reply-content">
+                    <div class="d-flex align-items-start">
+                        <div class="admin-avatar me-3">
+                            <i class="fas fa-user-shield fa-2x text-primary"></i>
+                        </div>
+                        <div class="reply-content flex-grow-1">
+                            <div class="reply-header mb-2">
+                                <strong>Administrator Response</strong>
+                                {% if complaint.replied_at %}
+                                <small class="text-muted ms-2">{{ complaint.replied_at }}</small>
+                                {% endif %}
+                            </div>
+                            <div class="reply-text p-3 bg-primary bg-opacity-10 rounded">
+                                {{ complaint.admin_reply|replace('\n', '<br>')|safe }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- User Information (Admin Only) -->
+{% if current_user.role == 'admin' %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card user-info-card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-user me-2"></i>User Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-12 col-md-6">
+                        <div class="user-info-item mb-3">
+                            <strong class="text-muted small">User Name:</strong>
+                            <div class="fw-bold">{{ complaint.user_name }}</div>
+                        </div>
+                        <div class="user-info-item mb-3">
+                            <strong class="text-muted small">Email:</strong>
+                            <div class="fw-bold">{{ complaint.user_email }}</div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="user-info-item mb-3">
+                            <strong class="text-muted small">User ID:</strong>
+                            <div class="fw-bold">{{ complaint.user_id }}</div>
+                        </div>
+                        <div class="user-info-item mb-3">
+                            <strong class="text-muted small">Complaint Status:</strong>
+                            <div class="fw-bold">
+                                <span class="badge 
+                                    {% if complaint.status == 'Pending' %}bg-warning
+                                    {% elif complaint.status == 'In Progress' %}bg-info
+                                    {% elif complaint.status == 'Resolved' %}bg-success
+                                    {% endif %}">
+                                    {{ complaint.status }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Action Buttons -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="d-flex justify-content-center gap-3 flex-wrap">
+                    <a href="{{ url_for('user_dashboard') }}" class="btn btn-primary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                    {% if current_user.role == 'admin' %}
+                    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-tachometer-alt me-2"></i>Admin Dashboard
+                    </a>
+                    <button class="btn btn-outline-info" onclick="window.print()">
+                        <i class="fas fa-print me-2"></i>Print Details
+                    </button>
+                    {% endif %}
+                    <button class="btn btn-outline-secondary" onclick="window.history.back()">
+                        <i class="fas fa-undo me-2"></i>Go Back
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.complaint-details-card {
+    border: none;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border-radius: 15px;
+}
+
+.complaint-title {
+    color: var(--dark-color);
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.meta-item {
+    margin-bottom: 1rem;
+}
+
+.description-content {
+    background: rgba(0, 0, 0, 0.05);
+    border-left: 4px solid var(--primary-color);
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 10px;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+.admin-reply-card {
+    border-left: 4px solid var(--primary-color);
+}
+
+.admin-avatar {
+    width: 50px;
+    height: 50px;
+    background: var(--primary-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
+.reply-content {
+    background: rgba(59, 130, 246, 0.1);
+    border-radius: 10px;
+    padding: 1rem;
+}
+
+.user-info-card {
+    border-left: 4px solid var(--success-color);
+}
+
+.user-info-item {
+    padding: 0.5rem 0;
+}
+
+/* Dark mode styles */
+body.dark-mode .description-content {
+    background: var(--dark-bg-secondary);
+    color: var(--dark-text-primary);
+}
+
+body.dark-mode .stat-item {
+    background: var(--dark-bg-secondary);
+    color: var(--dark-text-primary);
+}
+
+body.dark-mode .reply-content {
+    background: rgba(59, 130, 246, 0.2);
+    color: var(--dark-text-primary);
+}
+
+body.dark-mode .complaint-title {
+    color: var(--dark-text-primary);
+}
+</style>
+{% endblock %}

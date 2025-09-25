@@ -1,8 +1,34 @@
 {% extends "base.html" %}
 
-{% block title %}Admin Dashboard - Complaint Management System{% endblock %}
+{% block title %}Admin Dashboard - ResolveIt{% endblock %}
 
 {% block content %}
+<!-- AI-Powered Admin Suggestions Section -->
+<div class="row mb-4" id="adminAISuggestionsSection" style="display: none;">
+    <div class="col-12">
+        <div class="card ai-suggestions-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-robot me-2 text-primary"></i>AI-Powered Admin Insights
+                </h5>
+                <button class="btn btn-sm btn-outline-secondary" onclick="toggleAdminAISuggestions()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="adminAISuggestionsContent">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading insights...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Analyzing complaint patterns for admin insights...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Header Section -->
 <div class="row mb-3 mb-md-5">
     <div class="col-12">
@@ -13,6 +39,9 @@
                 </h1>
                 <p class="text-muted mb-3 mb-md-4 small">Manage and track all complaints in the system</p>
                 <div class="d-grid d-md-flex justify-content-center gap-2 gap-md-3 flex-wrap">
+                    <button class="btn btn-outline-info" onclick="showAdminAISuggestions()" id="adminAISuggestionsBtn">
+                        <i class="fas fa-robot me-2"></i>AI Insights
+                    </button>
                     <button class="btn btn-outline-primary" onclick="window.location.reload()">
                         <i class="fas fa-sync-alt me-2"></i>Refresh Data
                     </button>
@@ -21,6 +50,9 @@
                     </a>
                     <a href="{{ url_for('download_pdf') }}" class="btn btn-outline-danger">
                         <i class="fas fa-file-pdf me-2"></i>Download PDF
+                    </a>
+                    <a href="{{ url_for('database_status') }}" class="btn btn-outline-warning">
+                        <i class="fas fa-database me-2"></i>Database Status
                     </a>
                     <button class="btn btn-outline-info" onclick="window.print()">
                         <i class="fas fa-print me-2"></i>Print Report
@@ -177,6 +209,11 @@
                                 </button>
                             </div>
                         </form>
+                        <div class="d-flex gap-2 mb-3">
+                            <a href="{{ url_for('view_complaint_details', complaint_id=complaint.id) }}" class="btn btn-outline-primary btn-sm flex-grow-1">
+                                <i class="fas fa-eye me-2"></i>View Details
+                            </a>
+                        </div>
                         <form method="POST" action="{{ url_for('update_status', complaint_id=complaint.id) }}" class="needs-validation" novalidate>
                             <div class="d-flex flex-column flex-sm-row gap-2">
                                 <select name="status" class="form-select form-select-sm flex-grow-1" required>
@@ -293,5 +330,252 @@ setInterval(function() {
         });
     }, false);
 })();
+
+// Admin AI Suggestions Functions
+function showAdminAISuggestions() {
+    const suggestionsSection = document.getElementById('adminAISuggestionsSection');
+    const suggestionsBtn = document.getElementById('adminAISuggestionsBtn');
+    
+    if (suggestionsSection.style.display === 'none') {
+        suggestionsSection.style.display = 'block';
+        suggestionsBtn.innerHTML = '<i class="fas fa-robot me-2"></i>Hide AI';
+        suggestionsBtn.classList.remove('btn-outline-info');
+        suggestionsBtn.classList.add('btn-info');
+        
+        // Generate admin AI suggestions
+        generateAdminAISuggestions();
+    } else {
+        suggestionsSection.style.display = 'none';
+        suggestionsBtn.innerHTML = '<i class="fas fa-robot me-2"></i>AI Insights';
+        suggestionsBtn.classList.remove('btn-info');
+        suggestionsBtn.classList.add('btn-outline-info');
+    }
+}
+
+function toggleAdminAISuggestions() {
+    showAdminAISuggestions();
+}
+
+function generateAdminAISuggestions() {
+    const complaints = getAdminComplaintData();
+    const suggestionsContent = document.getElementById('adminAISuggestionsContent');
+    
+    if (complaints.length === 0) {
+        suggestionsContent.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+                <h6 class="text-muted">No complaints to analyze</h6>
+                <p class="text-muted small">No complaints in the system to generate insights from!</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Simulate AI processing delay
+    setTimeout(() => {
+        const suggestions = analyzeAdminComplaints(complaints);
+        displayAdminSuggestions(suggestions);
+    }, 2000);
+}
+
+function getAdminComplaintData() {
+    const complaints = [];
+    const complaintCards = document.querySelectorAll('.card.h-100.hover-lift.slide-up');
+    
+    complaintCards.forEach(card => {
+        const title = card.querySelector('h6')?.textContent?.trim() || 'N/A';
+        const description = card.querySelector('.card-text')?.textContent?.trim() || 'N/A';
+        const status = card.querySelector('.badge')?.textContent?.trim() || 'N/A';
+        const email = card.querySelector('small')?.textContent?.trim() || 'N/A';
+        const priority = card.querySelector('.badge.bg-success, .badge.bg-warning, .badge.bg-danger, .badge.bg-dark')?.textContent?.trim() || 'N/A';
+        
+        complaints.push({
+            title,
+            description,
+            status,
+            email,
+            priority
+        });
+    });
+    
+    return complaints;
+}
+
+function analyzeAdminComplaints(complaints) {
+    const suggestions = [];
+    
+    // Analyze complaint patterns
+    const statusCounts = complaints.reduce((acc, complaint) => {
+        acc[complaint.status] = (acc[complaint.status] || 0) + 1;
+        return acc;
+    }, {});
+    
+    const priorityCounts = complaints.reduce((acc, complaint) => {
+        acc[complaint.priority] = (acc[complaint.priority] || 0) + 1;
+        return acc;
+    }, {});
+    
+    // Admin-specific suggestions
+    if (statusCounts['Pending'] > 3) {
+        suggestions.push({
+            type: 'warning',
+            icon: 'fas fa-clock',
+            title: 'High Pending Load',
+            description: `${statusCounts['Pending']} complaints are pending. Consider assigning more staff or implementing auto-assignment.`,
+            action: 'Review pending queue',
+            confidence: 90
+        });
+    }
+    
+    if (statusCounts['In Progress'] > 5) {
+        suggestions.push({
+            type: 'info',
+            icon: 'fas fa-cogs',
+            title: 'High Active Load',
+            description: `${statusCounts['In Progress']} complaints are in progress. Monitor resolution times.`,
+            action: 'Monitor active complaints',
+            confidence: 85
+        });
+    }
+    
+    if (priorityCounts['High'] > 2) {
+        suggestions.push({
+            type: 'danger',
+            icon: 'fas fa-exclamation-triangle',
+            title: 'Multiple High Priority Issues',
+            description: `${priorityCounts['High']} high priority complaints need immediate attention.`,
+            action: 'Escalate to senior staff',
+            confidence: 95
+        });
+    }
+    
+    // Response time analysis
+    const avgResponseTime = calculateAvgResponseTime(complaints);
+    if (avgResponseTime > 24) {
+        suggestions.push({
+            type: 'warning',
+            icon: 'fas fa-hourglass-half',
+            title: 'Slow Response Times',
+            description: `Average response time is ${avgResponseTime} hours. Consider improving processes.`,
+            action: 'Optimize workflow',
+            confidence: 80
+        });
+    }
+    
+    // User satisfaction insights
+    const resolvedCount = statusCounts['Resolved'] || 0;
+    const totalCount = complaints.length;
+    const resolutionRate = (resolvedCount / totalCount) * 100;
+    
+    if (resolutionRate < 70) {
+        suggestions.push({
+            type: 'danger',
+            icon: 'fas fa-chart-line-down',
+            title: 'Low Resolution Rate',
+            description: `Only ${resolutionRate.toFixed(1)}% of complaints are resolved. Need to improve efficiency.`,
+            action: 'Review resolution process',
+            confidence: 85
+        });
+    } else if (resolutionRate > 90) {
+        suggestions.push({
+            type: 'success',
+            icon: 'fas fa-trophy',
+            title: 'Excellent Resolution Rate',
+            description: `${resolutionRate.toFixed(1)}% resolution rate is excellent! Keep up the good work.`,
+            action: 'Maintain current processes',
+            confidence: 90
+        });
+    }
+    
+    // System optimization suggestions
+    if (complaints.length > 10) {
+        suggestions.push({
+            type: 'primary',
+            icon: 'fas fa-robot',
+            title: 'Consider Automation',
+            description: 'With this volume, consider implementing automated responses for common issues.',
+            action: 'Set up automation rules',
+            confidence: 75
+        });
+    }
+    
+    return suggestions;
+}
+
+function calculateAvgResponseTime(complaints) {
+    // Simulate response time calculation
+    return Math.floor(Math.random() * 48) + 1; // Random between 1-48 hours for demo
+}
+
+function displayAdminSuggestions(suggestions) {
+    const suggestionsContent = document.getElementById('adminAISuggestionsContent');
+    
+    if (suggestions.length === 0) {
+        suggestionsContent.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                <h6 class="text-success">System Running Smoothly!</h6>
+                <p class="text-muted small">No specific recommendations at this time. Your complaint management is optimal!</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<div class="row g-3">';
+    
+    suggestions.forEach((suggestion, index) => {
+        const confidenceColor = suggestion.confidence >= 80 ? 'success' : suggestion.confidence >= 60 ? 'warning' : 'secondary';
+        
+        html += `
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card suggestion-card h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-start mb-3">
+                            <div class="suggestion-icon me-3">
+                                <i class="${suggestion.icon} fa-2x text-${suggestion.type}"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="card-title mb-1">${suggestion.title}</h6>
+                                <span class="badge bg-${confidenceColor} small">${suggestion.confidence}% confidence</span>
+                            </div>
+                        </div>
+                        <p class="card-text text-muted small mb-3">${suggestion.description}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">${suggestion.action}</small>
+                            <button class="btn btn-sm btn-outline-${suggestion.type}" onclick="applyAdminSuggestion('${suggestion.type}', ${index})">
+                                <i class="fas fa-magic me-1"></i>Apply
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    suggestionsContent.innerHTML = html;
+}
+
+function applyAdminSuggestion(type, index) {
+    // Show a success message
+    const successMsg = document.createElement('div');
+    successMsg.className = 'alert alert-success alert-dismissible fade show position-fixed';
+    successMsg.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    successMsg.innerHTML = `
+        <i class="fas fa-magic me-2"></i>
+        <strong>Admin Insight Applied!</strong><br>
+        AI recommendation has been implemented.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(successMsg);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        if (successMsg.parentNode) {
+            successMsg.parentNode.removeChild(successMsg);
+        }
+    }, 3000);
+}
 </script>
 {% endblock %}

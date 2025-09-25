@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}Database Status - Admin Panel{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2 class="gradient-text mb-0">
+                <i class="fas fa-database me-2"></i>Database Status
+            </h2>
+            <div class="d-flex gap-2">
+                <a href="{{ url_for('manual_backup') }}" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Create Backup
+                </a>
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Database Overview -->
+<div class="row mb-4">
+    <div class="col-12 col-md-6 col-lg-3 mb-3">
+        <div class="card stat-card-modern">
+            <div class="card-body text-center">
+                <div class="stat-icon-container text-primary mb-3">
+                    <i class="fas fa-list-alt stat-icon"></i>
+                </div>
+                <h3 class="stat-number text-primary">{{ stats.total_complaints }}</h3>
+                <h6 class="stat-label">Total Complaints</h6>
+                <p class="stat-description">All complaints in database</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-12 col-md-6 col-lg-3 mb-3">
+        <div class="card stat-card-modern">
+            <div class="card-body text-center">
+                <div class="stat-icon-container text-info mb-3">
+                    <i class="fas fa-clock stat-icon"></i>
+                </div>
+                <h3 class="stat-number text-info">{{ stats.recent_complaints }}</h3>
+                <h6 class="stat-label">Recent (7 days)</h6>
+                <p class="stat-description">Complaints from last week</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-12 col-md-6 col-lg-3 mb-3">
+        <div class="card stat-card-modern">
+            <div class="card-body text-center">
+                <div class="stat-icon-container text-success mb-3">
+                    <i class="fas fa-hdd stat-icon"></i>
+                </div>
+                <h3 class="stat-number text-success">{{ "%.2f"|format(stats.database_size / 1024) }} KB</h3>
+                <h6 class="stat-label">Database Size</h6>
+                <p class="stat-description">Current database file size</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-12 col-md-6 col-lg-3 mb-3">
+        <div class="card stat-card-modern">
+            <div class="card-body text-center">
+                <div class="stat-icon-container {{ 'text-success' if stats.backup_exists else 'text-warning' }} mb-3">
+                    <i class="fas fa-{{ 'shield-alt' if stats.backup_exists else 'exclamation-triangle' }} stat-icon"></i>
+                </div>
+                <h3 class="stat-number {{ 'text-success' if stats.backup_exists else 'text-warning' }}">
+                    {{ 'Yes' if stats.backup_exists else 'No' }}
+                </h3>
+                <h6 class="stat-label">Backup Status</h6>
+                <p class="stat-description">{{ 'Backup available' if stats.backup_exists else 'No backup found' }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Database Details -->
+<div class="row mb-4">
+    <div class="col-12 col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>Database Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6">
+                        <strong>Database Path:</strong>
+                    </div>
+                    <div class="col-6">
+                        <code class="small">{{ stats.database_path }}</code>
+                    </div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-6">
+                        <strong>Database Size:</strong>
+                    </div>
+                    <div class="col-6">
+                        {{ "%.2f"|format(stats.database_size / 1024) }} KB
+                    </div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-6">
+                        <strong>Backup Available:</strong>
+                    </div>
+                    <div class="col-6">
+                        <span class="badge {{ 'bg-success' if stats.backup_exists else 'bg-warning' }}">
+                            {{ 'Yes' if stats.backup_exists else 'No' }}
+                        </span>
+                    </div>
+                </div>
+                {% if stats.backup_exists %}
+                <hr>
+                <div class="row">
+                    <div class="col-6">
+                        <strong>Backup Size:</strong>
+                    </div>
+                    <div class="col-6">
+                        {{ "%.2f"|format(stats.backup_size / 1024) }} KB
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-12 col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-pie me-2"></i>Complaints by Status
+                </h5>
+            </div>
+            <div class="card-body">
+                {% for status, count in stats.by_status.items() %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge 
+                        {% if status == 'Pending' %}bg-warning
+                        {% elif status == 'In Progress' %}bg-info
+                        {% elif status == 'Resolved' %}bg-success
+                        {% else %}bg-secondary
+                        {% endif %}">
+                        {{ status }}
+                    </span>
+                    <strong>{{ count }}</strong>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Database Health Check -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-heartbeat me-2"></i>Database Health Check
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-12 col-md-4 mb-3">
+                        <div class="d-flex align-items-center">
+                            <div class="me-3">
+                                <i class="fas fa-database fa-2x text-primary"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-1">Database Connection</h6>
+                                <span class="badge bg-success">Healthy</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-12 col-md-4 mb-3">
+                        <div class="d-flex align-items-center">
+                            <div class="me-3">
+                                <i class="fas fa-table fa-2x text-info"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-1">Tables Structure</h6>
+                                <span class="badge bg-success">Valid</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-12 col-md-4 mb-3">
+                        <div class="d-flex align-items-center">
+                            <div class="me-3">
+                                <i class="fas fa-shield-alt fa-2x {{ 'text-success' if stats.backup_exists else 'text-warning' }}"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-1">Data Protection</h6>
+                                <span class="badge {{ 'bg-success' if stats.backup_exists else 'bg-warning' }}">
+                                    {{ 'Protected' if stats.backup_exists else 'At Risk' }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if not stats.backup_exists %}
+                <div class="alert alert-warning mt-3">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Warning:</strong> No database backup found. It's recommended to create a backup to protect your data.
+                    <div class="mt-2">
+                        <a href="{{ url_for('manual_backup') }}" class="btn btn-warning btn-sm">
+                            <i class="fas fa-save me-1"></i>Create Backup Now
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

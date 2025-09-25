@@ -6,12 +6,64 @@ import sqlite3
 import os
 import csv
 import io
+import re
 from flask_mail import Mail, Message
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
+
+def validate_password(password):
+    """
+    Validate password strength according to security requirements.
+    Returns (is_valid, error_message)
+    """
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long"
+    
+    if len(password) > 128:
+        return False, "Password must be no more than 128 characters long"
+    
+    # Check for at least one uppercase letter
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain at least one uppercase letter"
+    
+    # Check for at least one lowercase letter
+    if not re.search(r'[a-z]', password):
+        return False, "Password must contain at least one lowercase letter"
+    
+    # Check for at least one digit
+    if not re.search(r'\d', password):
+        return False, "Password must contain at least one number"
+    
+    # Check for at least one special character
+    if not re.search(r'[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]', password):
+        return False, "Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;':\",./<>?)"
+    
+    # Check for common weak patterns
+    weak_patterns = [
+        r'(.)\1{2,}',  # 3 or more consecutive identical characters
+        r'(012|123|234|345|456|567|678|789|890)',  # Sequential numbers
+        r'(abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz)',  # Sequential letters
+        r'(qwe|wer|ert|rty|tyu|yui|uio|iop|asd|sdf|dfg|fgh|ghj|hjk|jkl|zxc|xcv|cvb|vbn|bnm)',  # Keyboard patterns
+    ]
+    
+    for pattern in weak_patterns:
+        if re.search(pattern, password.lower()):
+            return False, "Password contains common patterns that are easy to guess"
+    
+    # Check for common passwords
+    common_passwords = [
+        'password', 'password123', 'admin', 'admin123', '123456', '123456789',
+        'qwerty', 'abc123', 'letmein', 'welcome', 'monkey', 'dragon',
+        'master', 'hello', 'login', 'pass', '1234', '12345'
+    ]
+    
+    if password.lower() in common_passwords:
+        return False, "Password is too common and easily guessable"
+    
+    return True, "Password is strong"
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'  # Change this in production
@@ -46,13 +98,58 @@ def send_email_safely(subject: str, recipients: list[str], body: str) -> None:
         # Log to console for debug; do not interrupt request
         print(f"[mail] Failed to send email: {e}")
 
-# Database setup
-# Use a writable path on Vercel's serverless environment, or allow override via env
-tmp_db_default = '/tmp/complaints.db' if os.environ.get('VERCEL') else 'complaints.db'
-DATABASE = os.environ.get('DATABASE_PATH', tmp_db_default)
+# Database setup - Enhanced for better persistence
+def get_database_path():
+    """Get the appropriate database path with fallback options"""
+    # Check for custom database path first
+    if os.environ.get('DATABASE_PATH'):
+        return os.environ.get('DATABASE_PATH')
+    
+    # For production environments, use a persistent location
+    if os.environ.get('VERCEL'):
+        # On Vercel, use a more persistent location
+        persistent_path = '/var/task/complaints.db'
+        if os.path.exists('/var/task') and os.access('/var/task', os.W_OK):
+            return persistent_path
+        # Fallback to tmp but with backup mechanism
+        return '/tmp/complaints.db'
+    
+    # For local development and other environments
+    return 'complaints.db'
+
+DATABASE = get_database_path()
+
+def backup_database():
+    """Create a backup of the database"""
+    try:
+        if os.path.exists(DATABASE):
+            backup_path = f"{DATABASE}.backup"
+            import shutil
+            shutil.copy2(DATABASE, backup_path)
+            print(f"[backup] Database backed up to {backup_path}")
+            return True
+    except Exception as e:
+        print(f"[backup] Failed to backup database: {e}")
+    return False
+
+def restore_database():
+    """Restore database from backup if main database is missing or empty"""
+    try:
+        backup_path = f"{DATABASE}.backup"
+        if os.path.exists(backup_path) and (not os.path.exists(DATABASE) or os.path.getsize(DATABASE) == 0):
+            import shutil
+            shutil.copy2(backup_path, DATABASE)
+            print(f"[restore] Database restored from {backup_path}")
+            return True
+    except Exception as e:
+        print(f"[restore] Failed to restore database: {e}")
+    return False
 
 def init_db():
-    """Initialize the database with required tables"""
+    """Initialize the database with required tables and ensure persistence"""
+    # Try to restore from backup if needed
+    restore_database()
+    
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
     
@@ -63,9 +160,16 @@ def init_db():
             name TEXT NOT NULL,
             email TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
-            role TEXT DEFAULT 'user'
+            role TEXT DEFAULT 'user',
+            address TEXT DEFAULT ''
         )
     ''')
+    
+    # Add address column to existing users table if it doesn't exist
+    try:
+        cursor.execute('ALTER TABLE users ADD COLUMN address TEXT DEFAULT ""')
+    except:
+        pass  # Column already exists
     
     # Create complaints table
     cursor.execute('''
@@ -125,8 +229,41 @@ try:
 except Exception as e:
     print(f"[init_db] Schema initialization failed: {e}")
 
+def validate_database_integrity():
+    """Validate database integrity and check for data loss"""
+    try:
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        
+        # Check if tables exist
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='complaints'")
+        if not cursor.fetchone():
+            print("[integrity] Complaints table missing!")
+            return False
+            
+        # Check if there are any complaints
+        cursor.execute("SELECT COUNT(*) FROM complaints")
+        complaint_count = cursor.fetchone()[0]
+        print(f"[integrity] Found {complaint_count} complaints in database")
+        
+        # Check for recent complaints (last 24 hours)
+        cursor.execute("SELECT COUNT(*) FROM complaints WHERE created_at > datetime('now', '-1 day')")
+        recent_count = cursor.fetchone()[0]
+        print(f"[integrity] Found {recent_count} recent complaints")
+        
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"[integrity] Database integrity check failed: {e}")
+        return False
+
 def get_db_connection():
-    """Get database connection"""
+    """Get database connection with integrity check"""
+    # Perform integrity check before returning connection
+    if not validate_database_integrity():
+        print("[db] Database integrity issues detected, attempting restore...")
+        restore_database()
+    
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     return conn
@@ -163,6 +300,12 @@ def register():
         name = request.form['name']
         email = request.form['email']
         password = request.form['password']
+        
+        # Validate password strength
+        is_valid, error_message = validate_password(password)
+        if not is_valid:
+            flash(error_message, 'error')
+            return render_template('register.html')
         
         conn = get_db_connection()
         
@@ -256,6 +399,9 @@ def submit_complaint():
         conn.commit()
         conn.close()
         
+        # Create backup after successful complaint submission
+        backup_database()
+        
         flash('Complaint submitted successfully!', 'success')
 
         # Send confirmation email to the user (non-blocking)
@@ -274,6 +420,48 @@ def submit_complaint():
         return redirect(url_for('user_dashboard'))
     
     return render_template('submit_complaint.html')
+
+@app.route('/change_password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    if request.method == 'POST':
+        current_password = request.form['current_password']
+        new_password = request.form['new_password']
+        confirm_password = request.form['confirm_password']
+        
+        # Get current user's password from database
+        conn = get_db_connection()
+        user = conn.execute('SELECT password FROM users WHERE id = ?', (current_user.id,)).fetchone()
+        
+        # Verify current password
+        if not check_password_hash(user['password'], current_password):
+            flash('Current password is incorrect.', 'error')
+            conn.close()
+            return render_template('change_password.html')
+        
+        # Check if new password matches confirmation
+        if new_password != confirm_password:
+            flash('New passwords do not match.', 'error')
+            conn.close()
+            return render_template('change_password.html')
+        
+        # Validate new password strength
+        is_valid, error_message = validate_password(new_password)
+        if not is_valid:
+            flash(error_message, 'error')
+            conn.close()
+            return render_template('change_password.html')
+        
+        # Update password
+        hashed_new_password = generate_password_hash(new_password)
+        conn.execute('UPDATE users SET password = ? WHERE id = ?', (hashed_new_password, current_user.id))
+        conn.commit()
+        conn.close()
+        
+        flash('Password changed successfully!', 'success')
+        return redirect(url_for('user_dashboard'))
+    
+    return render_template('change_password.html')
 
 @app.route('/admin_dashboard')
 @login_required
@@ -331,6 +519,9 @@ def update_status(complaint_id):
     conn.commit()
     conn.close()
     
+    # Create backup after successful status update
+    backup_database()
+    
     flash('Complaint status updated successfully!', 'success')
 
     # Send status update email to the user (non-blocking)
@@ -383,6 +574,9 @@ def reply_to_complaint(complaint_id):
     ''', (reply_text, new_status, complaint_id))
     conn.commit()
     conn.close()
+    
+    # Create backup after successful reply
+    backup_database()
 
     flash('Reply sent to user successfully!', 'success')
 
@@ -532,6 +726,160 @@ def download_pdf():
 @app.route('/about')
 def about():
     return render_template('about.html')
+
+@app.route('/admin/database-status')
+@login_required
+def database_status():
+    """Admin route to check database status and health"""
+    if current_user.role != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('user_dashboard'))
+    
+    try:
+        conn = get_db_connection()
+        
+        # Get database statistics
+        stats = {}
+        
+        # Total complaints
+        cursor = conn.execute("SELECT COUNT(*) FROM complaints")
+        stats['total_complaints'] = cursor.fetchone()[0]
+        
+        # Complaints by status
+        cursor = conn.execute("SELECT status, COUNT(*) FROM complaints GROUP BY status")
+        stats['by_status'] = dict(cursor.fetchall())
+        
+        # Recent complaints (last 7 days)
+        cursor = conn.execute("SELECT COUNT(*) FROM complaints WHERE created_at > datetime('now', '-7 days')")
+        stats['recent_complaints'] = cursor.fetchone()[0]
+        
+        # Database file info
+        import os
+        if os.path.exists(DATABASE):
+            stats['database_size'] = os.path.getsize(DATABASE)
+            stats['database_path'] = DATABASE
+        else:
+            stats['database_size'] = 0
+            stats['database_path'] = "Database file not found!"
+        
+        # Check backup
+        backup_path = f"{DATABASE}.backup"
+        if os.path.exists(backup_path):
+            stats['backup_size'] = os.path.getsize(backup_path)
+            stats['backup_exists'] = True
+        else:
+            stats['backup_size'] = 0
+            stats['backup_exists'] = False
+        
+        conn.close()
+        
+        return render_template('database_status.html', stats=stats)
+        
+    except Exception as e:
+        flash(f'Error checking database status: {str(e)}', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/backup-database')
+@login_required
+def manual_backup():
+    """Admin route to manually trigger database backup"""
+    if current_user.role != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('user_dashboard'))
+    
+    if backup_database():
+        flash('Database backup created successfully!', 'success')
+    else:
+        flash('Failed to create database backup.', 'error')
+    
+    return redirect(url_for('database_status'))
+
+@app.route('/complaint/<int:complaint_id>')
+@login_required
+def view_complaint_details(complaint_id):
+    """View detailed information about a specific complaint"""
+    conn = get_db_connection()
+    
+    # Get complaint details with user information
+    complaint = conn.execute('''
+        SELECT c.*, u.name as user_name, u.email as user_email
+        FROM complaints c
+        JOIN users u ON c.user_id = u.id
+        WHERE c.id = ?
+    ''', (complaint_id,)).fetchone()
+    
+    conn.close()
+    
+    if not complaint:
+        flash('Complaint not found.', 'error')
+        return redirect(url_for('user_dashboard'))
+    
+    # Check if user has permission to view this complaint
+    if current_user.role != 'admin' and complaint['user_id'] != current_user.id:
+        flash('Access denied. You can only view your own complaints.', 'error')
+        return redirect(url_for('user_dashboard'))
+    
+    return render_template('complaint_details.html', complaint=complaint)
+
+@app.route('/profile')
+@login_required
+def profile():
+    """User profile page"""
+    return render_template('profile.html')
+
+@app.route('/profile/update', methods=['POST'])
+@login_required
+def update_profile():
+    """Update user profile information"""
+    try:
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip()
+        address = request.form.get('address', '').strip()
+        
+        # Validate required fields
+        if not name or not email:
+            flash('Name and email are required.', 'error')
+            return redirect(url_for('profile'))
+        
+        # Validate email format
+        import re
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, email):
+            flash('Please enter a valid email address.', 'error')
+            return redirect(url_for('profile'))
+        
+        # Check if email is already taken by another user
+        conn = get_db_connection()
+        existing_user = conn.execute(
+            'SELECT id FROM users WHERE email = ? AND id != ?',
+            (email, current_user.id)
+        ).fetchone()
+        
+        if existing_user:
+            flash('This email is already registered to another account.', 'error')
+            conn.close()
+            return redirect(url_for('profile'))
+        
+        # Update user profile
+        conn.execute('''
+            UPDATE users 
+            SET name = ?, email = ?, address = ?
+            WHERE id = ?
+        ''', (name, email, address, current_user.id))
+        
+        conn.commit()
+        conn.close()
+        
+        # Update current user object
+        current_user.name = name
+        current_user.email = email
+        
+        flash('Profile updated successfully!', 'success')
+        return redirect(url_for('profile'))
+        
+    except Exception as e:
+        flash('An error occurred while updating your profile.', 'error')
+        return redirect(url_for('profile'))
 
 if __name__ == '__main__':
     init_db()
