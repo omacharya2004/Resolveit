@@ -113,7 +113,7 @@ body::before {
 
 /* Navbar Enhancements */
 .navbar {
-    background: rgba(255, 255, 255, 0.95) !important;
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)) !important;
     backdrop-filter: blur(20px);
     border-bottom: 1px solid rgba(255, 255, 255, 0.2);
     box-shadow: var(--shadow-soft);
@@ -126,12 +126,8 @@ body::before {
 .navbar-brand {
     font-weight: 700;
     font-size: 1.5rem;
-    background: var(--gradient-rainbow);
-    background-size: 400% 400%;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    animation: gradientShift 3s ease-in-out infinite;
+    color: white !important;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
     position: relative;
 }
 
@@ -142,13 +138,19 @@ body::before {
     left: 0;
     width: 100%;
     height: 2px;
-    background: var(--gradient-primary);
+    background: rgba(255, 255, 255, 0.8);
     transform: scaleX(0);
     transition: var(--transition);
 }
 
 .navbar-brand:hover::after {
     transform: scaleX(1);
+}
+
+.navbar-brand:hover {
+    color: white !important;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    transform: scale(1.05);
 }
 
 @keyframes gradientShift {
@@ -158,7 +160,7 @@ body::before {
 
 .navbar-nav .nav-link {
     font-weight: 500;
-    color: var(--dark-color) !important;
+    color: white !important;
     transition: var(--transition-bounce);
     border-radius: 12px;
     margin: 0 5px;
@@ -174,7 +176,7 @@ body::before {
     left: -100%;
     width: 100%;
     height: 100%;
-    background: var(--gradient-primary);
+    background: rgba(255, 255, 255, 0.2);
     transition: var(--transition);
     z-index: -1;
 }
@@ -186,7 +188,17 @@ body::before {
 .navbar-nav .nav-link:hover {
     color: white !important;
     transform: translateY(-3px) scale(1.05);
-    box-shadow: var(--shadow-glow);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Dark mode toggle button styling */
+.navbar-nav .nav-link i {
+    transition: var(--transition);
+}
+
+.navbar-nav .nav-link:hover i {
+    transform: rotate(180deg);
 }
 
 /* Card Enhancements */
@@ -1066,22 +1078,24 @@ body.dark-mode .particle {
 
 /* Dark Mode Navbar */
 body.dark-mode .navbar {
-    background: rgba(15, 23, 42, 0.95) !important;
+    background: linear-gradient(135deg, #1e293b, #334155) !important;
     border-bottom: 1px solid var(--dark-border);
     box-shadow: 0 10px 25px var(--dark-shadow);
 }
 
 body.dark-mode .navbar-brand {
-    color: var(--dark-text-primary) !important;
+    color: white !important;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 body.dark-mode .navbar-nav .nav-link {
-    color: var(--dark-text-secondary) !important;
+    color: white !important;
 }
 
 body.dark-mode .navbar-nav .nav-link:hover {
-    color: var(--dark-accent) !important;
-    background: rgba(59, 130, 246, 0.1);
+    color: white !important;
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
 }
 
 /* Dark Mode Cards */
