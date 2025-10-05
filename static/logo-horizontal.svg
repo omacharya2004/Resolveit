@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="300" height="80" viewBox="0 0 300 80" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .logo-circle {
+        fill: var(--primary-color, #667eea);
+      }
+      .dark-mode .logo-circle {
+        fill: var(--dark-accent, #3b82f6);
+      }
+      .logo-checkmark {
+        stroke: #ffffff;
+        stroke-width: 4;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .logo-success-dot {
+        fill: #10b981;
+      }
+      .logo-text {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        font-size: 28px;
+        font-weight: 700;
+        fill: var(--primary-color, #667eea);
+      }
+      .dark-mode .logo-text {
+        fill: var(--dark-accent, #3b82f6);
+      }
+      .logo-subtitle {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+        fill: #6b7280;
+      }
+      .dark-mode .logo-subtitle {
+        fill: var(--dark-text-muted, #94a3b8);
+      }
+    </style>
+  </defs>
+  
+  <!-- Icon -->
+  <circle cx="40" cy="40" r="32" class="logo-circle"/>
+  <path d="M 27 40 L 35 48 L 53 30" class="logo-checkmark"/>
+  <circle cx="60" cy="28" r="3" class="logo-success-dot"/>
+  <circle cx="68" cy="36" r="3" class="logo-success-dot"/>
+  
+  <!-- Main text -->
+  <text x="85" y="35" class="logo-text">ResolveIt</text>
+  
+  <!-- Subtitle -->
+  <text x="85" y="52" class="logo-subtitle">Professional Complaint Management System</text>
+</svg>

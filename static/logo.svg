@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200" height="60" viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .logo-circle {
+        fill: var(--primary-color, #667eea);
+      }
+      .dark-mode .logo-circle {
+        fill: var(--dark-accent, #3b82f6);
+      }
+      .logo-checkmark {
+        stroke: #ffffff;
+        stroke-width: 3;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .logo-success-dot {
+        fill: #10b981;
+        opacity: 0.8;
+      }
+      .logo-text {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        font-size: 20px;
+        font-weight: 700;
+        fill: var(--primary-color, #667eea);
+      }
+      .dark-mode .logo-text {
+        fill: var(--dark-accent, #3b82f6);
+      }
+      .logo-subtitle {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        font-size: 10px;
+        font-weight: 500;
+        fill: #6b7280;
+      }
+      .dark-mode .logo-subtitle {
+        fill: var(--dark-text-muted, #94a3b8);
+      }
+    </style>
+  </defs>
+  
+  <!-- Background circle for icon -->
+  <circle cx="30" cy="30" r="28" class="logo-circle" stroke="#ffffff" stroke-width="2"/>
+  
+  <!-- Checkmark symbol (resolution/success) -->
+  <path d="M 20 30 L 26 36 L 40 22" class="logo-checkmark"/>
+  
+  <!-- Small dots representing resolved issues -->
+  <circle cx="45" cy="20" r="2" class="logo-success-dot"/>
+  <circle cx="50" cy="25" r="2" class="logo-success-dot"/>
+  <circle cx="45" cy="30" r="2" class="logo-success-dot"/>
+  
+  <!-- Text -->
+  <text x="70" y="25" class="logo-text">ResolveIt</text>
+  <text x="70" y="42" class="logo-subtitle">Complaint Management</text>
+</svg>

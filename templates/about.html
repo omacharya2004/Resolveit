@@ -5,11 +5,14 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-12 col-lg-10 col-xl-8">
-        <div class="card glass slide-up">
+        <div class="card glass slide-up hover-lift">
             <div class="card-body p-4 p-md-5">
-                <h2 class="gradient-text mb-3 h4 h2-md">
-                    <i class="fas fa-info-circle me-2"></i>About ResolveIt
-                </h2>
+                <div class="text-center mb-4">
+                    <img src="{{ url_for('static', filename='logo.svg') }}" alt="ResolveIt Logo" width="200" height="60" class="mb-3 about-logo">
+                    <h2 class="gradient-text mb-3 h4 h2-md">
+                        <i class="fas fa-info-circle me-2"></i>About ResolveIt
+                    </h2>
+                </div>
 
                 <h5 class="mb-2">Description</h5>
                 <p class="text-muted">
@@ -39,7 +42,7 @@
                                     <li><strong>Database:</strong> SQLite</li>
                                     <li><strong>Frontend:</strong> HTML, CSS, Bootstrap</li>
                                     <li><strong>Additional Libraries/Tools:</strong> Werkzeug (password hashing), Flask-Mail (optional notifications), Chart.js (optional analytics)</li>
-                                    <li><strong>Version Control & Deployment:</strong> GitHub, GitHub Pages / Heroku</li>
+                                    <li><strong>Version Control & Deployment:</strong> GitHub, GitHub Pages / Render</li>
                                 </ul>
                             </div>
                         </div>

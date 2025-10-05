@@ -6,23 +6,23 @@
 <!-- Hero Section -->
 <div class="row mb-3 mb-md-5">
     <div class="col-12">
-        <div class="card glass slide-up text-center">
+        <div class="card glass slide-up text-center hover-lift">
             <div class="card-body py-3 py-md-5">
                 <div class="mb-3 mb-md-4">
-                    <i class="fas fa-exclamation-triangle fa-2x fa-md-4x mb-2 mb-md-3"></i>
+                    <img src="{{ url_for('static', filename='logo-icon.svg') }}" alt="ResolveIt Logo" width="80" height="80" class="mb-2 mb-md-3 login-logo">
                 </div>
-                <h1 class="mb-2 mb-md-3 h3 h1-md">Welcome to Our Platform</h1>
+                <h1 class="mb-2 mb-md-3 h3 h1-md">Welcome to ResolveIt</h1>
                 <p class="text-muted mb-3 mb-md-4 small">Experience the future of complaint management with our cutting-edge system</p>
                 <div class="d-flex justify-content-center gap-2 gap-md-3 flex-wrap">
-                    <div class="feature-badge">
+                    <div class="feature-badge hover-scale">
                         <i class="fas fa-shield-alt"></i>
                         <span>Secure</span>
                     </div>
-                    <div class="feature-badge">
+                    <div class="feature-badge hover-scale">
                         <i class="fas fa-bolt"></i>
                         <span>Fast</span>
                     </div>
-                    <div class="feature-badge">
+                    <div class="feature-badge hover-scale">
                         <i class="fas fa-mobile-alt"></i>
                         <span>Mobile Ready</span>
                     </div>
@@ -32,43 +32,65 @@
     </div>
 </div>
 
+<!-- Login Type Selection -->
 <div class="row justify-content-center">
-    <div class="col-12 col-sm-10 col-md-8 col-lg-6 col-xl-4">
+    <div class="col-12 col-sm-10 col-md-8 col-lg-6 col-xl-5">
         <div class="card card-3d hover-lift slide-up">
             <div class="card-header text-center">
-                <h4 class="mb-0 h5 h4-md"><i class="fas fa-sign-in-alt me-2"></i>Welcome Back</h4>
-                <p class="mb-0 mt-2 opacity-75 small">Sign in to your account</p>
+                <h4 class="mb-0 h5 h4-md"><i class="fas fa-sign-in-alt me-2"></i>Choose Login Type</h4>
+                <p class="mb-0 mt-2 opacity-75 small">Select how you want to sign in</p>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('login') }}" class="needs-validation" novalidate>
-                    <div class="mb-3 mb-md-4">
-                        <label for="email" class="form-label">
-                            <i class="fas fa-envelope me-2"></i>Email Address
-                        </label>
-                        <input type="email" class="form-control form-control-lg" id="email" name="email" required 
-                               placeholder="Enter your email">
-                        <div class="invalid-feedback">
-                            Please provide a valid email address.
+                <div class="row g-3">
+                    <!-- User Login Card -->
+                    <div class="col-12 col-md-6">
+                        <div class="card border-0 bg-light h-100">
+                            <div class="card-body text-center p-4">
+                                <div class="mb-3">
+                                    <i class="fas fa-user fa-3x text-primary"></i>
+                                </div>
+                                <h5 class="card-title">User Login</h5>
+                                <p class="card-text small text-muted">Access your personal complaint dashboard</p>
+                                <a href="{{ url_for('user_login') }}" class="btn btn-primary">
+                                    <i class="fas fa-sign-in-alt me-2"></i>User Login
+                                </a>
+                            </div>
                         </div>
                     </div>
-                    <div class="mb-3 mb-md-4">
-                        <label for="password" class="form-label">
-                            <i class="fas fa-lock me-2"></i>Password
-                        </label>
-                        <input type="password" class="form-control form-control-lg" id="password" name="password" required 
-                               placeholder="Enter your password">
-                        <div class="invalid-feedback">
-                            Please provide your password.
+                    
+                    <!-- Admin Login Card -->
+                    <div class="col-12 col-md-6">
+                        <div class="card border-0 bg-light h-100">
+                            <div class="card-body text-center p-4">
+                                <div class="mb-3">
+                                    <i class="fas fa-user-shield fa-3x text-danger"></i>
+                                </div>
+                                <h5 class="card-title">Admin Login</h5>
+                                <p class="card-text small text-muted">Access administrative controls and management</p>
+                                <a href="{{ url_for('admin_login') }}" class="btn btn-danger">
+                                    <i class="fas fa-user-shield me-2"></i>Admin Login
+                                </a>
+                            </div>
                         </div>
                     </div>
-                    <div class="d-grid mb-3">
-                        <button type="submit" class="btn btn-primary btn-lg" data-loading>
-                            <i class="fas fa-sign-in-alt me-2"></i>Sign In
-                        </button>
-                    </div>
-                </form>
+                </div>
                 
-                <div class="text-center">
+                <!-- Google Sign-In Section -->
+                {% if google_oauth_configured %}
+                <div class="text-center mt-4">
+                    <hr class="my-3 my-md-4">
+                    <p class="mb-3 text-muted small">Or sign in with</p>
+                    <a href="{{ url_for('google_auth') }}" class="btn btn-outline-danger w-100 google-signin-btn">
+                        <i class="fab fa-google me-2"></i>Continue with Google
+                    </a>
+                    <p class="mt-2 small text-muted">
+                        <i class="fas fa-shield-alt me-1"></i>
+                        Secure authentication powered by Google
+                    </p>
+                </div>
+                {% endif %}
+                
+                <div class="text-center mt-4">
                     <hr class="my-3 my-md-4">
                     <p class="mb-3 text-muted small">Don't have an account?</p>
                     <a href="{{ url_for('register') }}" class="btn btn-outline-primary w-100">

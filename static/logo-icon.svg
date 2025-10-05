@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .logo-circle {
+        fill: var(--primary-color, #667eea);
+      }
+      .dark-mode .logo-circle {
+        fill: var(--dark-accent, #3b82f6);
+      }
+      .logo-checkmark {
+        stroke: #ffffff;
+        stroke-width: 2.5;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .logo-success-dot {
+        fill: #10b981;
+      }
+    </style>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="20" cy="20" r="18" class="logo-circle"/>
+  
+  <!-- Checkmark symbol -->
+  <path d="M 13 20 L 17 24 L 27 14" class="logo-checkmark"/>
+  
+  <!-- Small success dots -->
+  <circle cx="28" cy="12" r="1.5" class="logo-success-dot"/>
+  <circle cx="31" cy="15" r="1.5" class="logo-success-dot"/>
+</svg>

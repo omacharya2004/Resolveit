@@ -15,6 +15,9 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
+import requests
+import json
+from dotenv import load_dotenv
 
 def validate_password(password):
     """
@@ -67,11 +70,18 @@ def validate_password(password):
     
     return True, "Password is strong"
 
+load_dotenv()
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'  # Change this in production
 
 # Performance optimizations
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 31536000  # 1 year cache for static files
+
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
+GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'http://localhost:5000/auth/google/callback')
+GOOGLE_OAUTH_CONFIGURED = bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI)
 
 # Initialize Flask-Login
 login_manager = LoginManager()
@@ -172,15 +182,33 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 email TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL,
+                password TEXT,
                 role TEXT DEFAULT 'user',
-                address TEXT DEFAULT ''
+                address TEXT DEFAULT '',
+                google_id TEXT UNIQUE,
+                profile_picture TEXT,
+                auth_provider TEXT DEFAULT 'local'
             )
         ''')
         
-        # Add address column to existing users table if it doesn't exist
+        # Add new columns to existing users table if they don't exist
         try:
             cursor.execute('ALTER TABLE users ADD COLUMN address TEXT DEFAULT ""')
+        except:
+            pass
+        
+        try:
+            cursor.execute('ALTER TABLE users ADD COLUMN google_id TEXT UNIQUE')
+        except:
+            pass
+            
+        try:
+            cursor.execute('ALTER TABLE users ADD COLUMN profile_picture TEXT')
+        except:
+            pass
+            
+        try:
+            cursor.execute('ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT "local"')
         except:
             pass  # Column already exists
         
@@ -212,6 +240,23 @@ def init_db():
         except sqlite3.OperationalError:
             pass  # Column already exists
     
+        # Residential fields for complaints (idempotent migrations)
+        for column_def in [
+            'society TEXT DEFAULT ""',
+            'block TEXT DEFAULT ""',
+            'wing TEXT DEFAULT ""',
+            'floor TEXT DEFAULT ""',
+            'flat_no TEXT DEFAULT ""',
+            'address TEXT DEFAULT ""',
+            'landmark TEXT DEFAULT ""',
+            'contact_phone TEXT DEFAULT ""',
+            'preferred_visit_time TEXT DEFAULT ""'
+        ]:
+            try:
+                cursor.execute(f'ALTER TABLE complaints ADD COLUMN {column_def}')
+            except sqlite3.OperationalError:
+                pass
+
         # Add admin_reply and replied_at if they don't exist (for reply feature)
         try:
             cursor.execute('ALTER TABLE complaints ADD COLUMN admin_reply TEXT')
@@ -286,11 +331,14 @@ def get_db_connection():
     return conn
 
 class User(UserMixin):
-    def __init__(self, id, name, email, role):
+    def __init__(self, id, name, email, role, google_id=None, profile_picture=None, auth_provider='local'):
         self.id = id
         self.name = name
         self.email = email
         self.role = role
+        self.google_id = google_id
+        self.profile_picture = profile_picture
+        self.auth_provider = auth_provider
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -299,7 +347,19 @@ def load_user(user_id):
     conn.close()
     
     if user:
-        return User(user['id'], user['name'], user['email'], user['role'])
+        keys = user.keys() if hasattr(user, 'keys') else []
+        google_id = user['google_id'] if 'google_id' in keys else None
+        profile_picture = user['profile_picture'] if 'profile_picture' in keys else None
+        auth_provider = user['auth_provider'] if 'auth_provider' in keys else 'local'
+        return User(
+            user['id'],
+            user['name'],
+            user['email'],
+            user['role'],
+            google_id,
+            profile_picture,
+            auth_provider
+        )
     return None
 
 @app.route('/')
@@ -347,30 +407,52 @@ def register():
         flash('Registration successful! Please log in.', 'success')
         return redirect(url_for('login'))
     
-    return render_template('register.html')
+    return render_template('register.html', google_oauth_configured=GOOGLE_OAUTH_CONFIGURED)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # Redirect to main login page with options
+    return render_template('login.html', google_oauth_configured=GOOGLE_OAUTH_CONFIGURED)
+
+@app.route('/user_login', methods=['GET', 'POST'])
+def user_login():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
         
         conn = get_db_connection()
-        user = conn.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
+        user = conn.execute('SELECT * FROM users WHERE email = ? AND role = ?', (email, 'user')).fetchone()
         conn.close()
         
         if user and check_password_hash(user['password'], password):
             user_obj = User(user['id'], user['name'], user['email'], user['role'])
             login_user(user_obj)
-            
-            if user['role'] == 'admin':
-                return redirect(url_for('admin_dashboard'))
-            else:
-                return redirect(url_for('user_dashboard'))
+            flash('Welcome back!', 'success')
+            return redirect(url_for('user_dashboard'))
         else:
-            flash('Invalid email or password.', 'error')
+            flash('Invalid email or password. Please make sure you are using a user account.', 'error')
     
-    return render_template('login.html')
+    return render_template('user_login.html')
+
+@app.route('/admin_login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+        
+        conn = get_db_connection()
+        user = conn.execute('SELECT * FROM users WHERE email = ? AND role = ?', (email, 'admin')).fetchone()
+        conn.close()
+        
+        if user and check_password_hash(user['password'], password):
+            user_obj = User(user['id'], user['name'], user['email'], user['role'])
+            login_user(user_obj)
+            flash('Welcome back, Administrator!', 'success')
+            return redirect(url_for('admin_dashboard'))
+        else:
+            flash('Invalid email or password. Please make sure you are using an admin account.', 'error')
+    
+    return render_template('admin_login.html')
 
 @app.route('/logout')
 @login_required
@@ -378,6 +460,140 @@ def logout():
     logout_user()
     flash('You have been logged out successfully.', 'info')
     return redirect(url_for('login'))
+
+# Google OAuth Routes
+@app.route('/auth/google')
+def google_auth():
+    """Initiate Google OAuth flow"""
+    if not GOOGLE_CLIENT_ID:
+        flash('Google authentication is not configured. Please contact the administrator.', 'error')
+        return redirect(url_for('login'))
+    
+    # Store the next page in session for redirect after login
+    next_page = request.args.get('next')
+    if next_page:
+        session['next'] = next_page
+    
+    # Google OAuth URL
+    google_auth_url = (
+        f"https://accounts.google.com/o/oauth2/v2/auth?"
+        f"client_id={GOOGLE_CLIENT_ID}&"
+        f"redirect_uri={GOOGLE_REDIRECT_URI}&"
+        f"scope=openid%20email%20profile&"
+        f"response_type=code&"
+        f"access_type=offline"
+    )
+    
+    return redirect(google_auth_url)
+
+@app.route('/auth/google/callback')
+def google_callback():
+    """Handle Google OAuth callback"""
+    code = request.args.get('code')
+    error = request.args.get('error')
+    
+    if error:
+        flash('Google authentication was cancelled or failed.', 'error')
+        return redirect(url_for('login'))
+    
+    if not code:
+        flash('Google authentication failed. Please try again.', 'error')
+        return redirect(url_for('login'))
+    
+    try:
+        # Exchange code for access token
+        token_url = 'https://oauth2.googleapis.com/token'
+        token_data = {
+            'client_id': GOOGLE_CLIENT_ID,
+            'client_secret': GOOGLE_CLIENT_SECRET,
+            'code': code,
+            'grant_type': 'authorization_code',
+            'redirect_uri': GOOGLE_REDIRECT_URI
+        }
+        
+        token_response = requests.post(token_url, data=token_data)
+        token_response.raise_for_status()
+        token_json = token_response.json()
+        access_token = token_json['access_token']
+        
+        # Get user info from Google
+        user_info_url = 'https://www.googleapis.com/oauth2/v2/userinfo'
+        headers = {'Authorization': f'Bearer {access_token}'}
+        user_response = requests.get(user_info_url, headers=headers)
+        user_response.raise_for_status()
+        user_info = user_response.json()
+        
+        # Extract user information
+        google_id = user_info['id']
+        email = user_info['email']
+        name = user_info['name']
+        profile_picture = user_info.get('picture')
+        
+        conn = get_db_connection()
+        
+        # Check if user already exists
+        existing_user = conn.execute(
+            'SELECT * FROM users WHERE email = ? OR google_id = ?', 
+            (email, google_id)
+        ).fetchone()
+        
+        if existing_user:
+            # Update existing user with Google info if needed
+            if not existing_user['google_id']:
+                conn.execute(
+                    'UPDATE users SET google_id = ?, profile_picture = ?, auth_provider = ? WHERE id = ?',
+                    (google_id, profile_picture, 'google', existing_user['id'])
+                )
+                conn.commit()
+            
+            user = User(
+                existing_user['id'],
+                existing_user['name'],
+                existing_user['email'],
+                existing_user['role'],
+                google_id,
+                profile_picture,
+                'google'
+            )
+        else:
+            # Create new user
+            cursor = conn.execute(
+                'INSERT INTO users (name, email, google_id, profile_picture, auth_provider) VALUES (?, ?, ?, ?, ?)',
+                (name, email, google_id, profile_picture, 'google')
+            )
+            user_id = cursor.lastrowid
+            conn.commit()
+            
+            user = User(
+                user_id,
+                name,
+                email,
+                'user',  # Default role
+                google_id,
+                profile_picture,
+                'google'
+            )
+        
+        conn.close()
+        
+        # Log the user in
+        login_user(user)
+        flash(f'Welcome back, {name}!', 'success')
+        
+        # Redirect to next page or dashboard
+        next_page = session.pop('next', None)
+        if next_page:
+            return redirect(next_page)
+        
+        if user.role == 'admin':
+            return redirect(url_for('admin_dashboard'))
+        else:
+            return redirect(url_for('user_dashboard'))
+            
+    except Exception as e:
+        print(f"Google OAuth error: {e}")
+        flash('Google authentication failed. Please try again.', 'error')
+        return redirect(url_for('login'))
 
 @app.route('/user_dashboard')
 @login_required
@@ -407,11 +623,30 @@ def submit_complaint():
         category = request.form.get('category', 'General')
         priority = request.form.get('priority', 'Medium')
         
+        # Residential context fields (optional)
+        society = request.form.get('society', '').strip()
+        block = request.form.get('block', '').strip()
+        wing = request.form.get('wing', '').strip()
+        floor = request.form.get('floor', '').strip()
+        flat_no = request.form.get('flat_no', '').strip()
+        address = request.form.get('address', '').strip()
+        landmark = request.form.get('landmark', '').strip()
+        contact_phone = request.form.get('contact_phone', '').strip()
+        preferred_visit_time = request.form.get('preferred_visit_time', '').strip()
+
         conn = get_db_connection()
         conn.execute('''
-            INSERT INTO complaints (user_id, title, description, category, priority, status)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (current_user.id, title, description, category, priority, 'Pending'))
+            INSERT INTO complaints (
+                user_id, title, description, category, priority, status,
+                society, block, wing, floor, flat_no, address, landmark,
+                contact_phone, preferred_visit_time
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            current_user.id, title, description, category, priority, 'Pending',
+            society, block, wing, floor, flat_no, address, landmark,
+            contact_phone, preferred_visit_time
+        ))
         
         conn.commit()
         conn.close()

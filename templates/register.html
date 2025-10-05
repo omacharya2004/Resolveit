@@ -62,6 +62,21 @@
                     </div>
                 </form>
                 
+                <!-- Google Sign-Up Section -->
+                {% if google_oauth_configured %}
+                <div class="text-center">
+                    <hr class="my-3 my-md-4">
+                    <p class="mb-3 text-muted small">Or sign up with</p>
+                    <a href="{{ url_for('google_auth') }}" class="btn btn-outline-danger w-100 google-signin-btn">
+                        <i class="fab fa-google me-2"></i>Continue with Google
+                    </a>
+                    <p class="mt-2 small text-muted">
+                        <i class="fas fa-shield-alt me-1"></i>
+                        Secure registration powered by Google
+                    </p>
+                </div>
+                {% endif %}
+                
                 <div class="text-center">
                     <hr class="my-3 my-md-4">
                     <p class="mb-3 text-muted small">Already have an account?</p>
